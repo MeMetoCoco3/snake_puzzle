@@ -5,11 +5,8 @@ import "core:math"
 import "core:math/linalg"
 import "core:os"
 import "core:path/filepath"
-import "core:relative"
 import "core:slice"
 import "core:strings"
-import "core:strconv"
-import as "shared:assimp/"
 import ai "shared:assimp/import"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
@@ -450,9 +447,16 @@ end_glfw :: proc() {
 	glfw.Terminate()
 }
 
+get_offset :: proc(rows, columns: i32)-> (i32, i32){
+	offset_x := Window.w/2 - (columns/2)*CELL_SIZE
+	offset_y := Window.h/2 - (rows/2)*CELL_SIZE
+	return offset_x, offset_y
+}
+
+
 MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
 
-set_grid :: proc(rows: int, columns: int, offset_x: int=0, offset_y: int=0)->VAO{
+set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO{
 	VecData:: struct{
 		vertex: Vec3,
 		uv: Vec2
