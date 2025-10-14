@@ -454,8 +454,9 @@ get_offset :: proc(rows, columns: i32)-> (i32, i32){
 }
 
 
-MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
 
+MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
+MAX_NUM_INDEXES :: 100
 set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO{
 	VecData:: struct{
 		vertex: Vec3,
@@ -518,53 +519,6 @@ set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO
 }
 
 
-
-//
-// set_grid :: proc(rows: int, columns: int, offset: int)->VAO{
-// 	points : [ROWS * COLUMNS * 6]Vec3
-//
-//
-//
-// 	n : int
-//
-// 	GRID_WIDTH := COLUMNS * CELL_SIZE
-// 	GRID_HEIGHT := ROWS * CELL_SIZE
-// 	for i := 0; i < GRID_WIDTH; i += CELL_SIZE {
-// 		for j := 0; j < GRID_HEIGHT; j += CELL_SIZE {
-// 			points[n] = Vec3{f32(i), f32(j), 0}
-// 			points[n+1] = Vec3{f32(i+CELL_SIZE), f32(j), 0}
-// 			points[n+2] = Vec3{f32(i), f32(j+CELL_SIZE), 0}
-// 			points[n+3] = Vec3{f32(i+CELL_SIZE), f32(j), 0}
-// 			points[n+4] = Vec3{f32(i+CELL_SIZE), f32(j+CELL_SIZE), 0}
-// 			points[n+5] = Vec3{f32(i), f32(j+CELL_SIZE), 0}
-// 			n += 6
-// 		}
-// 	}
-// 	vbo: VBO
-// 	vao: VAO
-//
-// 	gl.GenVertexArrays(1, &vao)
-// 	gl.GenBuffers(1, &vbo)
-// 	gl.BindVertexArray(vao)
-//
-// 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo) 
-// 	gl.BufferData(gl.ARRAY_BUFFER, size_of(points), &points, gl.STATIC_DRAW)
-//
-// 	gl.VertexAttribPointer(
-// 		index = 0,
-// 		size = 3,
-// 		type = gl.FLOAT,
-// 		normalized = gl.FALSE,
-// 		stride = size_of(Vec3),
-// 		pointer = 0,
-// 	)
-// 	gl.EnableVertexAttribArray(0)
-// 	gl.BindVertexArray(0)
-//
-// 	return vao
-//
-// }
-
 assign_geometry_shader:: proc(program: u32, gs_name: string){
 	gs := gl.CreateShader(gl.GEOMETRY_SHADER)
 	gs_source, err:= os.read_entire_file_or_err(gs_name)
@@ -579,20 +533,6 @@ assign_geometry_shader:: proc(program: u32, gs_name: string){
 	gl.AttachShader(program, gs)
 	gl.LinkProgram(program)
 }
-//
-// load_shaders:: proc(vs, fs: string) -> u32 {
-// 	shader_source, err := os.read_entire_file_or_err(vs, context.temp_allocator); assert(err==nil)
-// 	vertex_shader := string(shader_source)
-//
-// 	shader_source, err = os.read_entire_file_or_err(fs, context.temp_allocator); assert(err==nil)
-// 	fragment_shader := string(shader_source)
-// 	shader_program, ok := gl.load_shaders_source(vertex_shader, fragment_shader)
-// 	if !ok {
-// 		fmt.println("ERROR LOADING SHADERS");os.exit(1)
-// 	}
-// 	return shader_program
-// }
-//
 
 load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string = "") -> u32 {
     program := gl.CreateProgram()

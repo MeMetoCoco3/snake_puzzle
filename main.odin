@@ -134,12 +134,10 @@ main :: proc() {
 
 DrawBoard :: proc(shader: u32, vao: VAO){
 	gl.UseProgram(shader)
-
-	ortho := linalg.matrix_ortho3d_f32(0, f32(Window.w), f32(Window.h), 0, 0, 1)
 	gl.BindVertexArray(vao)
 
+	ortho := linalg.matrix_ortho3d_f32(0, f32(Window.w), f32(Window.h), 0, 0, 1)
 	set_mat4(shader, "ortho", &ortho)
-
 
 	n :i32=0
 	for row, i in Game.board{
@@ -152,4 +150,5 @@ DrawBoard :: proc(shader: u32, vao: VAO){
 	}
 
 
+	gl.BindVertexArray(0)
 }
