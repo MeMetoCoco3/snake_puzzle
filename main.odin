@@ -10,21 +10,36 @@ Window : struct{
 	w, h: i32
 }
 
-ROWS :: 10
-COLUMNS :: 10
-CELL_SIZE :: 64
+ROWS 			 :: 10
+COLUMNS 		 :: 10
+CELL_SIZE 		 :: 64
+MAX_NUM_ENTITIES :: 50
+
+
+entity_prefab := #sparse [E_ENTITY]Entity{
+	.EMPTY = Entity{}, .STATIC_COLLIDER = Entity{}, .PLAYER = Entity{},
+	.GOAL = Entity{textures[.CLEAN_PIG], .GOAL, {0, 0}},
+	.BUTTON = Entity{textures[.BUTTON], .BUTTON, {0, 0}},
+	.BOX = Entity{textures[.BOX], .BOX, {0, 0}}
+}
+
 
 E_TEXTURE :: enum{
 	TL, TM, TR,
 	ML, MM, MR,
 	BL, BM, BR,
-	DIRTY_PIG
+	DIRTY_PIG,
+	CLEAN_PIG,
+	BOX, BUTTON,
 }
 
 E_ENTITY :: enum{
 	EMPTY,
 	STATIC_COLLIDER,
-	PLAYER
+	PLAYER,
+	GOAL,
+	BUTTON,
+	BOX
 }
 
 
@@ -32,13 +47,14 @@ textures : map[E_TEXTURE]u32
 
 Entity :: struct {
 	texture: u32,
-	class: E_ENTITY
+	class: E_ENTITY,
+	position: Vec2,
 }
 
 
 Cell :: struct{
 	bg_texture: u32,
-	entity: Entity
+	entity_id: u32
 }
 
 Game : struct{
@@ -47,7 +63,10 @@ Game : struct{
 		position: Vec2,
 		direction: Vec2,
 		moving: bool,
+		texture: u32,
 	},
+	count_entities: i32,
+	entities: [50]Entity,
 	keys_down: [glfw.KEY_LAST]bool,
 }
 
@@ -69,6 +88,9 @@ main :: proc() {
 	load_texture("assets/2D/tm.png", .TM)
 	load_texture("assets/2D/tr.png", .TR)
 	load_texture("assets/2D/dirty_pig.png", .DIRTY_PIG)
+	load_texture("assets/2D/clean_pig.png", .CLEAN_PIG)
+	load_texture("assets/2D/box.png", .BOX)
+	load_texture("assets/2D/button.png", .BUTTON)
 
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
@@ -76,8 +98,7 @@ main :: proc() {
 	grid_vao := set_grid(ROWS, COLUMNS, offset_x, offset_y)
 
 	set_board()
-	set_player({4, 4})
-
+	player_set({4, 4})
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
 	main_loop: for (!glfw.WindowShouldClose(Window.handler)) {
@@ -85,7 +106,11 @@ main :: proc() {
 		delta_time = current_time - last_frame
 		last_frame = current_time
 		process_input(Window.handler)
-		CollisionSystem(delta_time)
+
+		MovePlayer()
+
+		// MoveRest()
+
 		Game.player.direction = {0, 0}
 		// RENDER
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
@@ -103,6 +128,13 @@ main :: proc() {
 }
 
 
+entity_create :: proc(class: E_ENTITY, position: Vec2)->(Entity, i32){
+	new_entity := entity_prefab[class]
+	new_entity.position = position
+	Game.count_entities += 1
+	return new_entity, Game.count_entities 
+}
+
 
 DrawBoard :: proc(shader: u32, vao: VAO){
 	gl.UseProgram(shader)
@@ -118,15 +150,20 @@ DrawBoard :: proc(shader: u32, vao: VAO){
 			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
 			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
 			// TODO: Draw seprately.
-			if cell.entity.class != .EMPTY{
+			if cell.entity_id > 0 && cell.entity_id < MAX_NUM_ENTITIES{
 				gl.ActiveTexture(gl.TEXTURE0)
-				gl.BindTexture(gl.TEXTURE_2D, cell.entity.texture)
+				gl.BindTexture(gl.TEXTURE_2D, Game.entities[cell.entity_id].texture)
 				gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
 			}
 
 			n +=1
 		}
 	}
+
+	player_cell := (Game.player.position.x + Game.player.position.y * len(Game.board)) * 6
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, Game.player.texture)
+	gl.DrawArrays(gl.TRIANGLES, i32(player_cell), 6)
 
 
 	gl.BindVertexArray(0)

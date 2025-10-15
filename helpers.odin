@@ -14,6 +14,7 @@ import stbi "vendor:stb/image"
 
 ASSETS_PATH :: "assets/"
 
+
 MIN_NUM_MESHES :: 10
 MIN_NUM_VERTICES :: 1024
 MIN_NUM_INDICES :: 1024
@@ -81,6 +82,10 @@ WIDTH :: 1200
 HEIGHT :: 1000
 
 MOVE_SPEED :: 10
+
+PLAYER_ID :: 666 
+EMPTY_ID  :: 667
+STATIC_COLLIDER_ID::668
 
 Camera :: struct {
 	position: Vec3,
@@ -1258,25 +1263,39 @@ get_cube_data:: proc()->[]f32{
 	return slice.clone_to_dynamic(cube[:])[:]
 }
 
-CollisionSystem :: proc(dt: f32){
+
+
+
+MovePlayer :: proc(){
 	player := &Game.player
 	new_position := player.position + player.direction 
 	if !is_out(new_position, len(Game.board), len(Game.board[0])){
 		collide: bool= false
-		cell:= get_cell(new_position)
-		switch cell.entity.class{
-			case .STATIC_COLLIDER:
-				collide = true
-			case .PLAYER:
-			case .EMPTY:
+		fmt.println(new_position)
+		entity, ok := get_cell(new_position)
+		if ok {
+			switch entity.class{
+				case .STATIC_COLLIDER:
+					collide = true
+				case .PLAYER:
+				case .EMPTY:
+				case .GOAL, .BUTTON, .BOX:
+			}
 		}
-		if !collide do move_player(new_position)
+		if !collide do player_move(new_position)
 	}
-
 }
 
-get_cell :: proc(pos: Vec2)->Cell{
-	return Game.board[int(pos.x)][int(pos.y)]
+MoveRest :: proc(){
+	
+}
+
+get_cell :: proc(pos: Vec2)->(Entity, bool){
+	cell := Game.board[int(pos.x)][int(pos.y)]
+	if cell.entity_id == 0 do return {}, false
+	fmt.println(cell.entity_id)
+	if cell.entity_id > MAX_NUM_ENTITIES do return {}, false
+	return Game.entities[cell.entity_id], true
 }
 
 
@@ -1286,22 +1305,20 @@ is_out :: proc(pos: Vec2, rows, cols: i32)->bool{
 	return false
 }
 
-set_player :: proc(pos: Vec2){
-
+player_set :: proc(pos: Vec2){
 	Game.player.position = pos
-	Game.board[int(pos.x)][int(pos.y)].entity.texture = textures[.DIRTY_PIG]
-	Game.board[int(pos.x)][int(pos.y)].entity.class = .PLAYER
+	Game.player.texture = textures[.DIRTY_PIG]
+	Game.board[int(pos.x)][int(pos.y)].entity_id = PLAYER_ID
 }
 
 
 
-move_player :: proc(new_pos: Vec2){
+player_move :: proc(new_pos: Vec2){
 	pos := Game.player.position
-	Game.board[int(pos.x)][int(pos.y)].entity.class = .EMPTY
+	Game.board[int(pos.x)][int(pos.y)].entity_id = EMPTY_ID
 
 	Game.player.position = new_pos
-	Game.board[int(new_pos.x)][int(new_pos.y)].entity.texture = textures[.DIRTY_PIG]
-	Game.board[int(new_pos.x)][int(new_pos.y)].entity.class = .PLAYER
+	Game.board[int(new_pos.x)][int(new_pos.y)].entity_id = PLAYER_ID
 }
 
 set_board :: proc(){
@@ -1310,31 +1327,32 @@ set_board :: proc(){
 			cell := &Game.board[i][j]
 			if j == 1 && (i > 1 && i < 8){
 				cell.bg_texture = textures[.TM]
-				cell.entity.class = .STATIC_COLLIDER
+				cell.entity_id = STATIC_COLLIDER_ID
 				continue
 			}
 
 			if j == 8 && (i > 1 && i < 8){ 
 				cell.bg_texture = textures[.BM]
-				cell.entity.class = .STATIC_COLLIDER
+				cell.entity_id = STATIC_COLLIDER_ID
 				continue
 			}
 
 			if i == 1 && (j > 1 && j < 8){
 				cell.bg_texture = textures[.ML]
-				cell.entity.class = .STATIC_COLLIDER
+				cell.entity_id = STATIC_COLLIDER_ID
 				continue
 			}
 
 			if i == 8 && (j > 1 && j < 8){
 				cell.bg_texture = textures[.MR]
-				cell.entity.class = .STATIC_COLLIDER
+
+				cell.entity_id = STATIC_COLLIDER_ID
 				continue
 			}
 
 			if i < 8 && i > 1 && j < 8 && j > 1{
 				cell.bg_texture = textures[.MM]
-				cell.entity.class = .EMPTY
+				cell.entity_id = EMPTY_ID
 				continue
 			} else {
 				cell.bg_texture = textures[.DIRTY_PIG]
@@ -1343,13 +1361,13 @@ set_board :: proc(){
 	}
 
 	Game.board[1][1].bg_texture = textures[.TL]
-	Game.board[1][1].entity.class = .STATIC_COLLIDER
+	Game.board[1][1].entity_id = STATIC_COLLIDER_ID
 	Game.board[1][8].bg_texture = textures[.BL]
-	Game.board[1][8].entity.class = .STATIC_COLLIDER
+	Game.board[1][8].entity_id = STATIC_COLLIDER_ID
 	Game.board[8][1].bg_texture = textures[.TR]
-	Game.board[8][1].entity.class = .STATIC_COLLIDER
+	Game.board[8][1].entity_id = STATIC_COLLIDER_ID
 	Game.board[8][8].bg_texture = textures[.BR]
-	Game.board[8][8].entity.class = .STATIC_COLLIDER
+	Game.board[8][8].entity_id = STATIC_COLLIDER_ID
 
 }
 
