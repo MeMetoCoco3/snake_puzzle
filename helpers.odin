@@ -292,31 +292,57 @@ set_vec3:: proc(program:u32, loc: cstring, val: [3]f32){
 }
 
 
+
+
+
+
+
+
+
 process_input :: proc(window: glfw.WindowHandle) {
 	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
 		glfw.SetWindowShouldClose(window, true)
 	}
 
-	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS {
-		camera.position += MOVE_SPEED * camera.target * delta_time
+	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  {
+		if !Game.keys_down[glfw.KEY_UP]{
+			fmt.println("JAMON")
+			Game.player.direction = {0, -1}
+			Game.keys_down[glfw.KEY_UP] = true
+		}
+	} else {
+		Game.keys_down[glfw.KEY_UP] = false
 	}
 
-	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS {
-		camera.position -= MOVE_SPEED * camera.target * delta_time
+	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  {
+		if !Game.keys_down[glfw.KEY_DOWN]{
+			Game.player.direction = {0, 1}
+			Game.keys_down[glfw.KEY_DOWN] = true
+		}
+	} else {
+		Game.keys_down[glfw.KEY_DOWN] = false
 	}
 
-	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS {
-		right := linalg.normalize(linalg.cross(camera.target, camera.up))
-		camera.position -= MOVE_SPEED * right * delta_time
+	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  {
+		if !Game.keys_down[glfw.KEY_LEFT]{
+			Game.player.direction = {-1, 0}
+			Game.keys_down[glfw.KEY_LEFT] = true
+		}
+	} else {
+		Game.keys_down[glfw.KEY_LEFT] = false
 	}
 
-	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS {
-		right := linalg.normalize(linalg.cross(camera.target, camera.up))
-		camera.position += MOVE_SPEED * right * delta_time
+	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  {
+		if !Game.keys_down[glfw.KEY_RIGHT]{
+			Game.player.direction = {1, 0}
+			Game.keys_down[glfw.KEY_RIGHT] = true
+		}
+	} else {
+		Game.keys_down[glfw.KEY_RIGHT] = false
 	}
-
-	camera.position.y = 0
 }
+
+
 
 draw_model :: proc(model: ^Model, program: u32) {
 	for &mesh in model.meshes {
@@ -430,7 +456,7 @@ init_glfw :: proc() {
 	Window.h = HEIGHT
 
 	glfw.MakeContextCurrent(Window.handler)
-	glfw.SetInputMode(Window.handler, glfw.CURSOR, glfw.CURSOR_DISABLED)
+	// glfw.SetInputMode(Window.handler, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
 	// We register callbacks
 	glfw.SetFramebufferSizeCallback(Window.handler, framebuffer_size_callback)
@@ -515,7 +541,6 @@ set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO
 	gl.BindVertexArray(0)
 
 	return vao
-
 }
 
 
@@ -1233,5 +1258,99 @@ get_cube_data:: proc()->[]f32{
 	return slice.clone_to_dynamic(cube[:])[:]
 }
 
+CollisionSystem :: proc(dt: f32){
+	player := &Game.player
+	new_position := player.position + player.direction 
+	if !is_out(new_position, len(Game.board), len(Game.board[0])){
+		collide: bool= false
+		cell:= get_cell(new_position)
+		switch cell.entity.class{
+			case .STATIC_COLLIDER:
+				collide = true
+			case .PLAYER:
+			case .EMPTY:
+		}
+		if !collide do move_player(new_position)
+	}
+
+}
+
+get_cell :: proc(pos: Vec2)->Cell{
+	return Game.board[int(pos.x)][int(pos.y)]
+}
+
+
+is_out :: proc(pos: Vec2, rows, cols: i32)->bool{
+	if pos.y < 0 || pos.y >= f32(cols) do return true
+	if pos.x < 0 || pos.x >= f32(rows) do return true
+	return false
+}
+
+set_player :: proc(pos: Vec2){
+
+	Game.player.position = pos
+	Game.board[int(pos.x)][int(pos.y)].entity.texture = textures[.DIRTY_PIG]
+	Game.board[int(pos.x)][int(pos.y)].entity.class = .PLAYER
+}
+
+
+
+move_player :: proc(new_pos: Vec2){
+	pos := Game.player.position
+	Game.board[int(pos.x)][int(pos.y)].entity.class = .EMPTY
+
+	Game.player.position = new_pos
+	Game.board[int(new_pos.x)][int(new_pos.y)].entity.texture = textures[.DIRTY_PIG]
+	Game.board[int(new_pos.x)][int(new_pos.y)].entity.class = .PLAYER
+}
+
+set_board :: proc(){
+	for i in 0..<ROWS{
+		for j in 0..<COLUMNS{
+			cell := &Game.board[i][j]
+			if j == 1 && (i > 1 && i < 8){
+				cell.bg_texture = textures[.TM]
+				cell.entity.class = .STATIC_COLLIDER
+				continue
+			}
+
+			if j == 8 && (i > 1 && i < 8){ 
+				cell.bg_texture = textures[.BM]
+				cell.entity.class = .STATIC_COLLIDER
+				continue
+			}
+
+			if i == 1 && (j > 1 && j < 8){
+				cell.bg_texture = textures[.ML]
+				cell.entity.class = .STATIC_COLLIDER
+				continue
+			}
+
+			if i == 8 && (j > 1 && j < 8){
+				cell.bg_texture = textures[.MR]
+				cell.entity.class = .STATIC_COLLIDER
+				continue
+			}
+
+			if i < 8 && i > 1 && j < 8 && j > 1{
+				cell.bg_texture = textures[.MM]
+				cell.entity.class = .EMPTY
+				continue
+			} else {
+				cell.bg_texture = textures[.DIRTY_PIG]
+			}
+		}
+	}
+
+	Game.board[1][1].bg_texture = textures[.TL]
+	Game.board[1][1].entity.class = .STATIC_COLLIDER
+	Game.board[1][8].bg_texture = textures[.BL]
+	Game.board[1][8].entity.class = .STATIC_COLLIDER
+	Game.board[8][1].bg_texture = textures[.TR]
+	Game.board[8][1].entity.class = .STATIC_COLLIDER
+	Game.board[8][8].bg_texture = textures[.BR]
+	Game.board[8][8].entity.class = .STATIC_COLLIDER
+
+}
 
 

@@ -19,29 +19,39 @@ E_TEXTURE :: enum{
 	ML, MM, MR,
 	BL, BM, BR,
 	DIRTY_PIG
+}
 
+E_ENTITY :: enum{
+	EMPTY,
+	STATIC_COLLIDER,
+	PLAYER
 }
 
 
 textures : map[E_TEXTURE]u32
 
-Entity::struct {
-	texture: u32
+Entity :: struct {
+	texture: u32,
+	class: E_ENTITY
 }
 
 
 Cell :: struct{
 	bg_texture: u32,
 	entity: Entity
-	
 }
 
 Game : struct{
 	board: [ROWS][COLUMNS]Cell,
 	player: struct{
-		position: Vec2
-	}
+		position: Vec2,
+		direction: Vec2,
+		moving: bool,
+	},
+	keys_down: [glfw.KEY_LAST]bool,
 }
+
+
 
 main :: proc() {
 	context.logger = log.create_console_logger()
@@ -62,66 +72,28 @@ main :: proc() {
 
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
-
 	offset_x, offset_y := get_offset(ROWS, COLUMNS)
 	grid_vao := set_grid(ROWS, COLUMNS, offset_x, offset_y)
 
-
-	Game.board = [ROWS][COLUMNS]Cell{}
-	for i in 0..<ROWS{
-		for j in 0..<COLUMNS{
-			if j == 1 && (i > 1 && i < 8){
-				Game.board[i][j].bg_texture = textures[.TM]
-				continue
-			}
-
-			if j == 8 && (i > 1 && i < 8){ 
-				Game.board[i][j].bg_texture = textures[.BM]
-				continue
-			}
-
-			if i == 1 && (j > 1 && j < 8){
-				Game.board[i][j].bg_texture = textures[.ML]
-				continue
-			}
-
-			if i == 8 && (j > 1 && j < 8){
-				Game.board[i][j].bg_texture = textures[.MR]
-				continue
-			}
-
-			if i < 8 && i > 1 && j < 8 && j > 1{
-				Game.board[i][j].bg_texture = textures[.MM]
-				continue
-			} else {
-				Game.board[i][j].bg_texture = textures[.DIRTY_PIG]
-			}
-		}
-	}
-
-
-	Game.board[1][1].bg_texture = textures[.TL]
-	Game.board[1][8].bg_texture = textures[.BL]
-	Game.board[8][1].bg_texture = textures[.TR]
-	Game.board[8][8].bg_texture = textures[.BR]
-
-
-
-
-
-	// gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE) // Wireframe mode
+	set_board()
+	set_player({4, 4})
 
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
 	main_loop: for (!glfw.WindowShouldClose(Window.handler)) {
+		current_time := f32(glfw.GetTime())
+		delta_time = current_time - last_frame
+		last_frame = current_time
 		process_input(Window.handler)
-
+		CollisionSystem(delta_time)
+		Game.player.direction = {0, 0}
 		// RENDER
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		DrawBoard(grid_program, grid_vao)
-
+		// We need a trnaslate matrix for this, so we will use another program
+		// DrawPlayer(grid_program)
 
 		// Call events and swap buffers
 		glfw.SwapBuffers(Window.handler)
@@ -145,6 +117,13 @@ DrawBoard :: proc(shader: u32, vao: VAO){
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
 			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
+			// TODO: Draw seprately.
+			if cell.entity.class != .EMPTY{
+				gl.ActiveTexture(gl.TEXTURE0)
+				gl.BindTexture(gl.TEXTURE_2D, cell.entity.texture)
+				gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
+			}
+
 			n +=1
 		}
 	}
