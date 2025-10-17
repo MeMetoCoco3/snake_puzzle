@@ -1,21 +1,12 @@
 package main
 import "core:c"
 import "core:fmt"
-import "core:math"
+import "core:log"
 import "core:os"
 import "core:strings"
-import ai "shared:assimp/import"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import stbi "vendor:stb/image"
-
-ASSETS_PATH :: "assets/"
-
-
-MIN_NUM_MESHES :: 10
-MIN_NUM_VERTICES :: 1024
-MIN_NUM_INDICES :: 1024
-MIN_NUM_TEXTURES :: 10
 
 Vec2 :: [2]f32
 Vec3 :: [3]f32
@@ -27,121 +18,66 @@ EBO :: u32
 FBO :: u32
 RBO :: u32
 
-FOV :: 49
 WIDTH :: 1200
 HEIGHT :: 1000
 
-MOVE_SPEED :: 10
-
-Camera :: struct {
-	position: Vec3,
-	target:   Vec3,
-	up:       Vec3,
-	yaw:      f32,
-	pitch:    f32,
-	roll:     f32,
-}
-
-MOUSE_SENSITIVITY :: 0.05
-mouse_info: struct {
-	last_x, last_y: f64,
-	zoom:           f64,
-	first:          bool,
-} = {WIDTH / 2, HEIGHT / 2, 45, true}
-
-mix_val: f32
-rot_val: f32
-fovy: f32 = FOV
 delta_time: f32
 last_frame: f32
 
-Data::[8]f32
-
-
-
-get_format_from_n_chan:: proc(n: i32)->(format:i32){
-	switch n{
-		case 1:
-			format = gl.RED
-		case 3:
-			format = gl.RGB
-		case 4:
-			format = gl.RGBA
-		case:
-			format = -1
-	}
-	
-	return
-}
-
-@(private)
-aiString_to_string :: proc(aiStr: ^ai.aiString) -> string {
-	return strings.string_from_ptr(&aiStr.data[0], int(aiStr.length))
-}
-
-
-set_V3 :: proc(program: u32, loc: cstring, val: Vec3) {
-	gl.Uniform3f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z)
-}
-
-set_V4 :: proc(program: u32, loc: cstring, val: Vec4) {
-	gl.Uniform4f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z, val.y)
-}
-
-set_mat4:: proc(program:u32, loc: cstring, val: ^matrix[4, 4]f32){
-	gl.UniformMatrix4fv(gl.GetUniformLocation(program, loc), 1, gl.FALSE, &val[0, 0] )
-}
-
-set_vec3:: proc(program:u32, loc: cstring, val: [3]f32){
-	slot := gl.GetUniformLocation(program, loc)
-	gl.Uniform3f(slot, val.x, val.y, val.z)
-}
-
+set_vec3 :: proc(program: u32, loc: cstring, val: Vec3) 		   { gl.Uniform3f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z) }
+set_vec4 :: proc(program: u32, loc: cstring, val: Vec4) 		   { gl.Uniform4f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z, val.y) }
+set_mat4 :: proc(program: u32, loc: cstring, val: ^matrix[4, 4]f32) { gl.UniformMatrix4fv(gl.GetUniformLocation(program, loc), 1, gl.FALSE, &val[0, 0]) }
 
 process_input :: proc(window: glfw.WindowHandle) {
-	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
+	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS 
+	{
 		glfw.SetWindowShouldClose(window, true)
 	}
 
-	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  {
-		if !Game.keys_down[glfw.KEY_UP]{
+	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_UP]
+		{
 			entity_set_dir(PLAYER_INDEX, {0, -1})
 			Game.keys_down[glfw.KEY_UP] = true
 		}
-	} else {
-		Game.keys_down[glfw.KEY_UP] = false
-	}
+	} 
+	else { Game.keys_down[glfw.KEY_UP] = false }
 
-	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  {
-		if !Game.keys_down[glfw.KEY_DOWN]{
+	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_DOWN]
+		{
 			entity_set_dir(PLAYER_INDEX, {0, 1})
 			Game.keys_down[glfw.KEY_DOWN] = true
 		}
-	} else {
-		Game.keys_down[glfw.KEY_DOWN] = false
 	}
+	else { Game.keys_down[glfw.KEY_DOWN] = false }
 
-	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  {
-		if !Game.keys_down[glfw.KEY_LEFT]{
+	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_LEFT]
+		{
 			entity_set_dir(PLAYER_INDEX, {-1, 0})
 			Game.keys_down[glfw.KEY_LEFT] = true
 		}
-	} else {
-		Game.keys_down[glfw.KEY_LEFT] = false
-	}
+	} 
+	else { Game.keys_down[glfw.KEY_LEFT] = false }
 
-	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  {
-		if !Game.keys_down[glfw.KEY_RIGHT]{
+	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_RIGHT]
+		{
 			entity_set_dir(PLAYER_INDEX, {1, 0})
 			Game.keys_down[glfw.KEY_RIGHT] = true
 		}
-	} else {
-		Game.keys_down[glfw.KEY_RIGHT] = false
-	}
+	} 
+	else { Game.keys_down[glfw.KEY_RIGHT] = false }
 }
 
 
-init_glfw :: proc() {
+init_glfw :: proc() 
+{
 	glfw.Init()
 
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -158,46 +94,48 @@ init_glfw :: proc() {
 	glfw.MakeContextCurrent(Window.handler)
 	// glfw.SetInputMode(Window.handler, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
-	// We register callbacks
 	glfw.SetFramebufferSizeCallback(Window.handler, framebuffer_size_callback)
 	// glfw.SetCursorPosCallback(Window.handler, mouse_callback)
-	glfw.SetScrollCallback(Window.handler, scroll_callback)
+	// glfw.SetScrollCallback(Window.handler, scroll_callback)
 
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	gl.Viewport(0, 0, WIDTH, HEIGHT)
 
 }
 
-end_glfw :: proc() {
+end_glfw :: proc() 
+{
 	glfw.DestroyWindow(Window.handler)
 	glfw.Terminate()
 }
 
-get_offset :: proc(rows, columns: i32)-> (i32, i32){
+get_offset :: proc(rows, columns: i32)-> (i32, i32)
+{
 	offset_x := Window.w/2 - (columns/2)*CELL_SIZE
 	offset_y := Window.h/2 - (rows/2)*CELL_SIZE
 	return offset_x, offset_y
 }
 
-
-
 MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
 MAX_NUM_INDEXES :: 100
-set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO{
-	VecData:: struct{
+set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VAO
+{
+	VecData:: struct
+	{
 		vertex: Vec3,
 		uv: Vec2
 	}
+
 	points : [MAX_NUM_CELLS_PER_GRID]VecData
 	n: int
 
 	GRID_WIDTH := columns * CELL_SIZE + offset_x
 	GRID_HEIGHT := rows * CELL_SIZE + offset_y
 
-
-
-	for i := offset_x; i < GRID_WIDTH; i += CELL_SIZE {
-		for j := offset_y; j < GRID_HEIGHT; j += CELL_SIZE {
+	for i := offset_x; i < GRID_WIDTH; i += CELL_SIZE 
+	{
+		for j := offset_y; j < GRID_HEIGHT; j += CELL_SIZE 
+		{
 			points[n] = VecData{vertex = {f32(i), f32(j), 0}, uv = {0, 0}}
 			points[n+1] = VecData{vertex = {f32(i+CELL_SIZE), f32(j), 0}, uv =  {1, 0}}
 			points[n+2] = VecData{vertex = {f32(i), f32(j+CELL_SIZE), 0},  uv =  {0, 1}}
@@ -218,7 +156,8 @@ set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo) 
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(points), &points, gl.STATIC_DRAW)
 
-	gl.VertexAttribPointer(
+	gl.VertexAttribPointer \
+	(
 		index = 0,
 		size = 3,
 		type = gl.FLOAT,
@@ -243,23 +182,8 @@ set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)->VAO
 	return vao
 }
 
-
-assign_geometry_shader:: proc(program: u32, gs_name: string){
-	gs := gl.CreateShader(gl.GEOMETRY_SHADER)
-	gs_source, err:= os.read_entire_file_or_err(gs_name)
-	if (err != nil){
-		fmt.printfln("Error loading geometry shader. %v", err)
-		os.exit(1)
-	}
-	
-	cgs : cstring = strings.clone_to_cstring(transmute(string)gs_source)
-	gl.ShaderSource(gs, 1, &cgs, nil)
-	gl.CompileShader(gs)
-	gl.AttachShader(program, gs)
-	gl.LinkProgram(program)
-}
-
-load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string = "") -> u32 {
+load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string = "") -> u32 
+{
     program := gl.CreateProgram()
 
     vs := gl.CreateShader(gl.VERTEX_SHADER)
@@ -270,7 +194,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 
     success: i32
     gl.GetShaderiv(vs, gl.COMPILE_STATUS, &success)
-    if success == 0 {
+    if success == 0 
+	{
         buf: [512]u8
         gl.GetShaderInfoLog(vs, 512, nil, &buf[0])
         fmt.printfln("Vertex shader compile error:\n%v", transmute(string)buf[:])
@@ -283,7 +208,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     gl.ShaderSource(fs, 1, &cfs, nil)
     gl.CompileShader(fs)
     gl.GetShaderiv(fs, gl.COMPILE_STATUS, &success)
-    if success == 0 {
+    if success == 0 
+	{
         buf: [512]u8
         gl.GetShaderInfoLog(fs, 512, nil, &buf[0])
         fmt.printfln("Fragment shader compile error:\n%v", transmute(string)buf[:])
@@ -291,7 +217,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     }
 
     gs: u32 = 0
-    if geometry_path != "" {
+    if geometry_path != "" 
+	{
         gs = gl.CreateShader(gl.GEOMETRY_SHADER)
         gs_src, _ := os.read_entire_file_or_err(geometry_path)
         cgs: cstring = strings.clone_to_cstring(transmute(string)gs_src)
@@ -312,7 +239,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     gl.LinkProgram(program)
 
     gl.GetProgramiv(program, gl.LINK_STATUS, &success)
-    if success == 0 {
+    if success == 0 
+	{
         buf: [512]u8
         gl.GetProgramInfoLog(program, 512, nil, &buf[0])
         fmt.printfln("Shader program link error:\n%v", transmute(string)buf[:])
@@ -322,7 +250,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     // Cleanup
     gl.DeleteShader(vs)
     gl.DeleteShader(fs)
-    if geometry_path != "" {
+    if geometry_path != "" 
+	{
         gl.DeleteShader(gs)
     }
 
@@ -330,9 +259,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 }
 
 
-
-
-load_texture :: proc(name: string, key: E_TEXTURE){
+load_texture :: proc(name: string, key: E_TEXTURE)
+{
 	id: u32
 	gl.GenTextures(1, &id)
 	
@@ -341,9 +269,11 @@ load_texture :: proc(name: string, key: E_TEXTURE){
 	c_path := strings.clone_to_cstring(name, context.temp_allocator)
 
 	data  := stbi.load(c_path, &width, &height, &n_components, 0)
-	if (data!=nil) {
+	if (data!=nil) 
+	{
 		format : u32
-		switch n_components{
+		switch n_components
+		{
 		case 1:
 			format = gl.RED
 		case 3:
@@ -379,205 +309,134 @@ load_texture :: proc(name: string, key: E_TEXTURE){
 }
 
 
-load_image :: proc(file_path: string, source_format: u32) -> (width, height, n_channels: i32) {
-	stbi.set_flip_vertically_on_load(1)
-
-	texture_data := stbi.load(
-		strings.clone_to_cstring(file_path, context.temp_allocator),
-		&width,
-		&height,
-		&n_channels,
-		0,
-	)
-
-	if (texture_data != nil) {
-		gl.TexImage2D(
-			gl.TEXTURE_2D,
-			0,
-			gl.RGB,
-			width,
-			height,
-			0,
-			source_format,
-			gl.UNSIGNED_BYTE,
-			texture_data,
-		)
-		gl.GenerateMipmap(gl.TEXTURE_2D)
-		stbi.image_free(texture_data)
-	} else {
-		fmt.printfln("Error loading texture data from '%v'.", file_path)
-		os.exit(1)
-	}
-
-	return
-}
-
-
-load_success :: proc(shader: u32) {
-	success: [^]i32
-	gl.GetShaderiv(shader, gl.COMPILE_STATUS, success)
-	if success[0] != 0 {
-
-		log: [^]u8
-		gl.GetShaderInfoLog(shader, 512, nil, log)
-		fmt.println("ERROR::SHADER::VERTEX::COMPILATION_FAILED")
-		fmt.printfln("%s", log)
-	}
-
-}
-
-update :: proc(mat: ^matrix[4, 4]f32) {
-	// rot := linalg.matrix4_rotate_f32(rot_val, Vec3{0, 0, 1})
-	// mat^ = mat^ * rot
-	time := glfw.GetTime()
-
-	mat[0, 1] *= (f32(math.sin(time)) / 2)
-	fmt.println(mat[0, 1])
-}
-
-// import "base:runtime"
-//
-// mouse_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
-// 	using math
-// 	if (mouse_info.first) {
-//
-// 		mouse_info.last_x = xpos
-// 		mouse_info.last_y = ypos
-// 		mouse_info.first = false
-// 	}
-//
-// 	offset_x := xpos - mouse_info.last_x
-// 	offset_y := mouse_info.last_y - ypos // Reversed: y ranges from bottom to top
-//
-// 	mouse_info.last_x = xpos
-// 	mouse_info.last_y = ypos
-//
-// 	offset_x *= MOUSE_SENSITIVITY
-// 	offset_y *= MOUSE_SENSITIVITY
-//
-// 	camera.yaw += f32(offset_x)
-// 	camera.pitch += f32(offset_y)
-//
-// 	if camera.pitch >= 89 {
-// 		camera.pitch = 89
-// 	} else if camera.pitch <= -89 {
-// 		camera.pitch = -89
-// 	}
-//
-//
-// 	dir: Vec3
-//
-// 	dir.x = cos(linalg.RAD_PER_DEG * camera.yaw) * cos(linalg.RAD_PER_DEG * camera.pitch)
-// 	dir.y = sin(linalg.RAD_PER_DEG * camera.pitch)
-// 	dir.z = sin(linalg.RAD_PER_DEG * camera.yaw) * cos(linalg.RAD_PER_DEG * camera.pitch)
-// 	camera.target = linalg.normalize(dir)
-// }
-
-scroll_callback :: proc "c" (window: glfw.WindowHandle, xoffset, yoffset: f64) {
-	mouse_info.zoom -= yoffset
-	if mouse_info.zoom < 1 {
-		mouse_info.zoom = 1
-	} else if mouse_info.zoom > 45 {
-		mouse_info.zoom = 45
-	}
-}
-
 // Callback function on window resize.
-framebuffer_size_callback :: proc "c" (window: glfw.WindowHandle, width, height: c.int) {
+framebuffer_size_callback :: proc "c" (window: glfw.WindowHandle, width, height: c.int) 
+{
 	Window.w = width
 	Window.h = height
 	gl.Viewport(0, 0, width, height)
 }
 
-
-out :: proc(line:any=0, loc := #caller_location) {
+out :: proc(line:any=0, loc := #caller_location) 
+{
 	fmt.println(line)
 	fmt.printf("We are going out on line: %v", loc)
 	os.exit(1)
 }
 
 
-s_collide :: proc(){
+s_collide :: proc()
+{
+	// INFO: First we move Player
 	player := entity_get(PLAYER_INDEX)
 	new_position := player.position + player.direction 
-	if !is_out(new_position, len(Game.board), len(Game.board[0])){
+	if !is_out(new_position, len(Game.board), len(Game.board[0])) && player.direction != {0, 0} 
+	{
+		entities, entities_ids, e_count := entities_get_from_pos(new_position)	
 
-		if player.direction != {0, 0} do fmt.println(player.position, player.direction)
-		entity, entity_id := get_cell(new_position)
-		if entity_id > 1 {}//TODO:DO SOMETHING
-		if is_wall(new_position) do entity_set_pos(PLAYER_INDEX, new_position)	
-		
+		for i in 0..<e_count
+		{
+			if entities_ids[i] > 1 
+			{
+				log.infof("Player collide with: %v, on %v ", entities[i], new_position)
+				if .WIN in entities[i].flags
+				{
+					fmt.println("JAMON")
+				}
+			}
+		}
+		if is_wall(new_position) do entity_move(PLAYER_INDEX, player.position, new_position)
 	}
+	entity_set_dir(PLAYER_INDEX, {0, 0})
+
+	// TODO: Move rest 
 }
 
-is_wall :: proc(pos: Vec2)->bool{
+is_wall :: proc(pos: Vec2)->bool
+{
 	return Game.board[int(pos.x)][int(pos.y)].wall
 
 }
 
+ 
+MoveRest :: proc(){}
 
-MoveRest :: proc(){
-	
+entities_get_from_pos :: proc(pos: Vec2)->(entities: [2]Entity, ids: [2]u32, count: u32)
+{
+	cell := cell_get_by_pos(pos)
+	count = cell.entity_count
+	if cell_is_empty(cell) do return {}, {}, 0
+	if cell.entities_id[0] < 1 do return {}, {}, 0
+
+	if count == 1
+	{
+		ids = {cell.entities_id[0], 0}
+		entities[0] = Game.entities[ids[0]]
+		entities[1] = {}
+	}
+	else 
+	{
+		ids = {cell.entities_id[0], cell.entities_id[1]}
+		entities[0] = Game.entities[ids[0]]
+		entities[1] = Game.entities[ids[1]]
+	}
+
+	return 
 }
-// CELL ID NEEDS TO BE DESTROYED UNLESS IS TO REFERENCE [?]ENTITIES
-get_cell :: proc(pos: Vec2)->(Entity, u32){
-	cell := Game.board[int(pos.x)][int(pos.y)]
-	if cell.entity_id < 1 do return {}, cell.entity_id
-	if cell.entity_id > MAX_NUM_ENTITIES do return {}, cell.entity_id
-	return Game.entities[cell.entity_id], cell.entity_id
-}
 
 
-is_out :: proc(pos: Vec2, rows, cols: i32)->bool{
+
+cell_is_empty :: proc(cell: Cell)-> bool{ return cell.entity_count == 0 }
+
+is_out :: proc(pos: Vec2, rows, cols: i32)->bool
+{
 	if pos.y < 0 || pos.y >= f32(cols) do return true
 	if pos.x < 0 || pos.x >= f32(rows) do return true
 	return false
 }
 
-move_entity :: proc(id: u32, new_pos: Vec2){
-	entity := entity_get(id)
-	pos := entity.position
-	Game.board[int(pos.x)][int(pos.y)].entity_id = EMPTY_INDEX
-	
-	entity_set_pos(id, new_pos)
-	Game.board[int(new_pos.x)][int(new_pos.y)].entity_id = PLAYER_INDEX
-}
-
-set_board :: proc(){
-	for i in 0..<ROWS{
-		for j in 0..<COLUMNS{
+set_board :: proc()
+{
+	for i in 0..<ROWS
+	{
+		for j in 0..<COLUMNS
+		{
 			cell := &Game.board[i][j]
-			if j == 1 && (i > 1 && i < 8){
+			if j == 1 && (i > 1 && i < 8)
+			{
 				cell.bg_texture = textures[.TM]
 				cell.wall = true
 				continue
 			}
 
-			if j == 8 && (i > 1 && i < 8){ 
+			if j == 8 && (i > 1 && i < 8)
+			{
 				cell.bg_texture = textures[.BM]
 				cell.wall = true
 				continue
 			}
 
-			if i == 1 && (j > 1 && j < 8){
+			if i == 1 && (j > 1 && j < 8)
+			{
 				cell.bg_texture = textures[.ML]
 				cell.wall = true
 				continue
 			}
 
-			if i == 8 && (j > 1 && j < 8){
+			if i == 8 && (j > 1 && j < 8)
+			{
 				cell.bg_texture = textures[.MR]
 				cell.wall = true
 				continue
 			}
 
-			if i < 8 && i > 1 && j < 8 && j > 1{
+			if i < 8 && i > 1 && j < 8 && j > 1
+			{
 				cell.bg_texture = textures[.MM]
 				cell.wall = true
 				continue
-			} else {
-				cell.bg_texture = textures[.DIRTY_PIG]
-			}
+			} 
+			else { cell.bg_texture = textures[.DIRTY_PIG] }
 		}
 	}
 
@@ -591,5 +450,3 @@ set_board :: proc(){
 	Game.board[8][8].wall = true
 
 }
-
-

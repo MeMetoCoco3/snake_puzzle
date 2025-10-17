@@ -1,14 +1,11 @@
 package main
 
 import "core:log"
+import "core:fmt"
+import "core:os"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
-
-Window : struct{
-	handler: glfw.WindowHandle, 
-	w, h: i32
-}
 
 ROWS 			 :: 10
 COLUMNS 		 :: 10
@@ -16,7 +13,8 @@ CELL_SIZE 		 :: 64
 MAX_NUM_ENTITIES :: 50
 
 
-E_TEXTURE :: enum{
+E_TEXTURE :: enum
+{
 	TL, TM, TR,
 	ML, MM, MR,
 	BL, BM, BR,
@@ -26,7 +24,8 @@ E_TEXTURE :: enum{
 	GOAL
 }
 
-E_ENTITY :: enum{
+E_ENTITY :: enum
+{
 	PLAYER,
 	GOAL,
 	BUTTON,
@@ -36,15 +35,18 @@ E_ENTITY :: enum{
 
 textures : map[E_TEXTURE]u32
 
-Actions :: enum{
+Actions :: enum
+{
 	WIN,
+	STOMPABLE, 
 	PRESSABLE,
 	PUSHABLE
 }
 
 ActionFlags :: bit_set[Actions]
 
-Entity :: struct{
+Entity :: struct
+{
 	class: Class,
 	flags: ActionFlags,
 	position: Vec2,
@@ -53,34 +55,40 @@ Entity :: struct{
 	moving: bool,
 }
 
-Class :: union{
+Class :: union
+{
 	Object,
 	Player
 }
 
-Player :: struct{
-}
-
-Object :: struct {
-}
+Player :: struct{}
+Object :: struct{}
 
 
-Cell :: struct{
+Cell :: struct
+{
 	bg_texture: u32,
-	entity_id: u32,
+	entities_id: [2]u32,
+	entity_count: u32,
 	wall: bool
 }
 
-Game : struct{
+Window : struct
+{
+	handler: glfw.WindowHandle, 
+	w, h: i32
+}
+
+Game : struct
+{
 	board: [ROWS][COLUMNS]Cell,
 	entity_count: i32,
 	entities: [50]Entity,
 	keys_down: [glfw.KEY_LAST]bool,
 }
 
-
-
-main :: proc() {
+main :: proc() 
+{
 	context.logger = log.create_console_logger()
 	init_glfw()
 	gl.Enable(gl.BLEND)
@@ -99,7 +107,7 @@ main :: proc() {
 	load_texture("assets/2D/clean_pig.png", .CLEAN_PIG)
 	load_texture("assets/2D/box.png", .BOX)
 	load_texture("assets/2D/button.png", .BUTTON)
-
+	load_texture("assets/2D/flag.png", .GOAL)
 
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
@@ -110,70 +118,48 @@ main :: proc() {
 	set_board()
 	Game.entity_count = 1
 
-	entity, id := entity_new(.PLAYER, {4, 4})
-	entity_set(id, entity)
+	entity_new_set(.PLAYER, {4, 4})
+	id := entity_new_set(.GOAL, {4, 7})
 	
+	entities_print(to = Game.entity_count, p_total = true)
+
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
-	main_loop: for (!glfw.WindowShouldClose(Window.handler)) {
+	main_loop: for (!glfw.WindowShouldClose(Window.handler)) 
+	{
 		current_time := f32(glfw.GetTime())
 		delta_time = current_time - last_frame
 		last_frame = current_time
 		process_input(Window.handler)
 
-		// MovePlayer()
 		s_collide()
-		entity_set_dir(PLAYER_INDEX, {0, 0})
 
 		// RENDER
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		s_draw(grid_program, grid_vao)
-
 		glfw.SwapBuffers(Window.handler)
 		glfw.PollEvents() 
 	}
 	return
 }
 
+//////////////
+// ENTITIES //
+//////////////
+
 EMPTY_INDEX :: 0
 PLAYER_INDEX :: 1
 
-entity_set:: proc(id: u32, entity: Entity){
-	Game.entities[id] = entity
-}
-
-entity_set_dir:: proc(id: u32, dir: Vec2){
-	Game.entities[id].direction = dir
-}
-
-entity_set_pos:: proc(id: u32, pos: Vec2){
-	Game.entities[id].position = pos
-}
-
-entity_get :: proc(id: u32)-> Entity{
-	return Game.entities[id]
-}
-
-entity_get_pos :: proc(id: u32)-> Vec2{
-	return Game.entities[id].position 
-}
-
-entity_get_texture :: proc(id: u32)-> u32{
-	return Game.entities[id].texture 
-}
-
-entity_get_dir :: proc(id: u32)-> Vec2{
-	return Game.entities[id].direction
-}
-
-entity_new :: proc(class: E_ENTITY, position: Vec2)->(Entity, u32){
-	entity_prefab := #sparse[E_ENTITY]Entity{
-		.PLAYER = Entity{class = Player{}, flags = {}, position = {0, 0}, texture = textures[.DIRTY_PIG]},
-		.GOAL = Entity{class = Object{}, flags = {.WIN}, position = {0, 0}, texture = textures[.GOAL]},
-		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE}, position = {0, 0}, texture = textures[.BUTTON]},
-		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {0, 0}, texture = textures[.BOX]},
+entity_new :: proc(class: E_ENTITY, position: Vec2)->(Entity, u32)
+{
+	entity_prefab := #sparse[E_ENTITY]Entity \
+	{
+		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG]},
+		.GOAL = Entity{class = Object{}, flags = {.WIN, .STOMPABLE}, position = {-1, -1}, texture = textures[.GOAL]},
+		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .STOMPABLE}, position = {-1, -1}, texture = textures[.BUTTON]},
+		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX]},
 	}
 
 	new_entity := entity_prefab[class]
@@ -185,12 +171,95 @@ entity_new :: proc(class: E_ENTITY, position: Vec2)->(Entity, u32){
 	return new_entity, u32(entity_index)
 }
 
-// TODO: LOOP OVER
+entity_set:: proc(id: u32, entity: Entity)
+{
+	Game.entities[id] = entity
+	count_entities := entities_count_on_cell(entity.position)
+	Game.board[i32(entity.position.y)][int(entity.position.x)].entities_id[count_entities] = id
+	Game.board[i32(entity.position.y)][int(entity.position.x)].entity_count += 1
+}
+
+entity_new_set :: proc(class: E_ENTITY, position: Vec2)-> u32
+{
+	entity, id := entity_new(class, position)
+	entity_set(id, entity)
+	return id
+}
+
+entities_count_on_cell :: proc(pos: Vec2)-> u32     { return Game.board[i32(pos.y)][i32(pos.x)].entity_count }
+entity_set_dir 		   :: proc(id: u32, dir: Vec2) { Game.entities[id].direction = dir }
+
+entity_get         :: proc(id: u32)-> Entity { return Game.entities[id] }
+entity_get_pos     :: proc(id: u32)-> Vec2   { return Game.entities[id].position }
+entity_get_texture :: proc(id: u32)-> u32    { return Game.entities[id].texture }
+entity_get_dir     :: proc(id: u32)-> Vec2   { return Game.entities[id].direction }
+
+entity_move :: proc(id: u32, prev_pos: Vec2, next_pos: Vec2)
+{
+	prev_cell := cell_get_by_pos(prev_pos)
+	next_cell := cell_get_by_pos(next_pos)
+
+	e_prev_count := prev_cell.entity_count
+	if (e_prev_count) == 0
+	{
+		Game.board[i32(prev_pos.y)][int(prev_pos.x)].entities_id[0] = EMPTY_INDEX
+	} 
+	else if (e_prev_count) >= 1 
+	{
+		for i in 0..< e_prev_count {
+			if (prev_cell.entities_id[i] == id) {	
+				Game.board[i32(prev_pos.y)][int(prev_pos.x)].entities_id[i] = EMPTY_INDEX
+			}
+		}	
+	} 
+	else 
+	{
+		os.exit(1)
+	}
+
+	e_next_count := next_cell.entity_count
+	if (e_next_count == 0)
+	{
+		Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[0] = id
+	} 
+	else if (e_next_count >= 1)
+	{
+		for i in 0..< e_next_count{
+			if next_cell.entities_id[i] == id {	
+				Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[i] = id
+			}
+		}	
+	} 
+	else 
+	{
+		os.exit(1)
+	}
+
+	Game.entities[id].position = next_pos
+}
+
 entities_zero :: proc(){
+	for i in 0..<len(Game.entities)
+	{
+		Game.entities[i] = {}
+	}
 	Game.entity_count = 0
 }
 
-s_draw :: proc(shader: u32, vao: VAO){
+entities_print::proc(from:i32 = 0, to:i32 = MAX_NUM_ENTITIES, p_total:bool = false)
+{
+	if p_total do fmt.printfln("Total: %v", Game.entity_count)
+	for x in from..<to
+	{
+		fmt.printfln("%v: %v", x, Game.entities[x])
+	}
+}
+
+/////////////
+// SYSTEMS //
+/////////////
+s_draw :: proc(shader: u32, vao: VAO)
+{
 	gl.UseProgram(shader)
 	gl.BindVertexArray(vao)
 
@@ -198,38 +267,36 @@ s_draw :: proc(shader: u32, vao: VAO){
 	set_mat4(shader, "ortho", &ortho)
 
 	n:i32=0
-	for row, i in Game.board{
-		for cell, j in row{
+	for row, i in Game.board
+	{
+		for cell, j in row
+		{
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
 			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
-			// // TODO: Draw seprately.
-			// TEXTURE IS EMPTY!
-			// if cell.entity_id > 0 && cell.entity_id < MAX_NUM_ENTITIES{
-			// 	gl.ActiveTexture(gl.TEXTURE0)
-			// 	gl.BindTexture(gl.TEXTURE_2D, Game.entities[cell.entity_id].texture)
-			// 	gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
-			// }
-
 			n +=1
 		}
 	}
-	for i in 0..<Game.entity_count{
-		if i == 0{continue}
+
+	for i in PLAYER_INDEX..<Game.entity_count
+	{
+		if i == 0 { continue }
+
 		entity := entity_get(u32(i))
-		player_cell := cell_get_by_pos(entity.position)
-		// log.info(entity, player_cell, entity.texture)
-		log.info(i)
+		player_cell := triangle_cell_get_by_pos(entity.position)
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.BindTexture(gl.TEXTURE_2D, entity.texture)
 		gl.DrawArrays(gl.TRIANGLES, i32(player_cell), 6)
-		gl.BindVertexArray(0)
 	}
+	gl.BindVertexArray(0)
 }
 
-cell_get_by_pos :: proc(pos: Vec2)->f32{
+triangle_cell_get_by_pos :: proc(pos: Vec2)->f32{
 	return (pos.y + pos.x * len(Game.board)) * 6
-} 
+}
 
+cell_get_by_pos :: proc(pos: Vec2)->Cell{
+	return Game.board[i32(pos.y)][i32(pos.x)]
+}
 
 
