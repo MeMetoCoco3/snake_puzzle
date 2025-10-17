@@ -18,7 +18,7 @@ EBO :: u32
 FBO :: u32
 RBO :: u32
 
-WIDTH :: 1200
+WIDTH  :: 1200
 HEIGHT :: 1000
 
 delta_time: f32
@@ -27,53 +27,6 @@ last_frame: f32
 set_vec3 :: proc(program: u32, loc: cstring, val: Vec3) 		   { gl.Uniform3f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z) }
 set_vec4 :: proc(program: u32, loc: cstring, val: Vec4) 		   { gl.Uniform4f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z, val.y) }
 set_mat4 :: proc(program: u32, loc: cstring, val: ^matrix[4, 4]f32) { gl.UniformMatrix4fv(gl.GetUniformLocation(program, loc), 1, gl.FALSE, &val[0, 0]) }
-
-process_input :: proc(window: glfw.WindowHandle) {
-	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS 
-	{
-		glfw.SetWindowShouldClose(window, true)
-	}
-
-	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  
-	{
-		if !Game.keys_down[glfw.KEY_UP]
-		{
-			entity_set_dir(PLAYER_INDEX, {0, -1})
-			Game.keys_down[glfw.KEY_UP] = true
-		}
-	} 
-	else { Game.keys_down[glfw.KEY_UP] = false }
-
-	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  
-	{
-		if !Game.keys_down[glfw.KEY_DOWN]
-		{
-			entity_set_dir(PLAYER_INDEX, {0, 1})
-			Game.keys_down[glfw.KEY_DOWN] = true
-		}
-	}
-	else { Game.keys_down[glfw.KEY_DOWN] = false }
-
-	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  
-	{
-		if !Game.keys_down[glfw.KEY_LEFT]
-		{
-			entity_set_dir(PLAYER_INDEX, {-1, 0})
-			Game.keys_down[glfw.KEY_LEFT] = true
-		}
-	} 
-	else { Game.keys_down[glfw.KEY_LEFT] = false }
-
-	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  
-	{
-		if !Game.keys_down[glfw.KEY_RIGHT]
-		{
-			entity_set_dir(PLAYER_INDEX, {1, 0})
-			Game.keys_down[glfw.KEY_RIGHT] = true
-		}
-	} 
-	else { Game.keys_down[glfw.KEY_RIGHT] = false }
-}
 
 
 init_glfw :: proc() 
@@ -116,8 +69,6 @@ get_offset :: proc(rows, columns: i32)-> (i32, i32)
 	return offset_x, offset_y
 }
 
-MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
-MAX_NUM_INDEXES :: 100
 set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VAO
 {
 	VecData:: struct
@@ -341,11 +292,15 @@ s_collide :: proc()
 				log.infof("Player collide with: %v, on %v ", entities[i], new_position)
 				if .WIN in entities[i].flags
 				{
-					fmt.println("JAMON")
+					glfw.SetWindowShouldClose(Window.handler, true)
 				}
+
 			}
 		}
-		if is_wall(new_position) do entity_move(PLAYER_INDEX, player.position, new_position)
+		if !is_wall(new_position) {
+		entity_move(PLAYER_INDEX, player.position, new_position)
+			fmt.println("LMAYO")
+		}
 	}
 	entity_set_dir(PLAYER_INDEX, {0, 0})
 
@@ -354,36 +309,12 @@ s_collide :: proc()
 
 is_wall :: proc(pos: Vec2)->bool
 {
-	return Game.board[int(pos.x)][int(pos.y)].wall
+	return Game.board[int(pos.y)][int(pos.x)].wall
 
 }
 
  
 MoveRest :: proc(){}
-
-entities_get_from_pos :: proc(pos: Vec2)->(entities: [2]Entity, ids: [2]u32, count: u32)
-{
-	cell := cell_get_by_pos(pos)
-	count = cell.entity_count
-	if cell_is_empty(cell) do return {}, {}, 0
-	if cell.entities_id[0] < 1 do return {}, {}, 0
-
-	if count == 1
-	{
-		ids = {cell.entities_id[0], 0}
-		entities[0] = Game.entities[ids[0]]
-		entities[1] = {}
-	}
-	else 
-	{
-		ids = {cell.entities_id[0], cell.entities_id[1]}
-		entities[0] = Game.entities[ids[0]]
-		entities[1] = Game.entities[ids[1]]
-	}
-
-	return 
-}
-
 
 
 cell_is_empty :: proc(cell: Cell)-> bool{ return cell.entity_count == 0 }
@@ -395,58 +326,43 @@ is_out :: proc(pos: Vec2, rows, cols: i32)->bool
 	return false
 }
 
-set_board :: proc()
+board_set :: proc()
 {
 	for i in 0..<ROWS
 	{
 		for j in 0..<COLUMNS
 		{
 			cell := &Game.board[i][j]
-			if j == 1 && (i > 1 && i < 8)
+			if j == 1 && (i >= 1 && i <= 8)
 			{
 				cell.bg_texture = textures[.TM]
-				cell.wall = true
-				continue
 			}
-
-			if j == 8 && (i > 1 && i < 8)
+			else if j == 8 && (i >= 1 && i <= 8)
 			{
 				cell.bg_texture = textures[.BM]
-				cell.wall = true
-				continue
 			}
-
-			if i == 1 && (j > 1 && j < 8)
+			else if i == 1 && (j >= 1 && j <= 8)
 			{
 				cell.bg_texture = textures[.ML]
-				cell.wall = true
-				continue
 			}
-
-			if i == 8 && (j > 1 && j < 8)
+			else if i == 8 && (j >= 1 && j <= 8)
 			{
 				cell.bg_texture = textures[.MR]
-				cell.wall = true
-				continue
 			}
-
-			if i < 8 && i > 1 && j < 8 && j > 1
+			else if i < 8 && i > 1 && j < 8 && j > 1
 			{
 				cell.bg_texture = textures[.MM]
-				cell.wall = true
-				continue
 			} 
-			else { cell.bg_texture = textures[.DIRTY_PIG] }
+			else 
+			{ 
+				cell.bg_texture = textures[.DIRTY_PIG] 
+				cell.wall = true
+			}
 		}
 	}
 
 	Game.board[1][1].bg_texture = textures[.TL]
-	Game.board[1][1].wall = true
 	Game.board[1][8].bg_texture = textures[.BL]
-	Game.board[1][8].wall = true
 	Game.board[8][1].bg_texture = textures[.TR]
-	Game.board[8][1].wall = true
 	Game.board[8][8].bg_texture = textures[.BR]
-	Game.board[8][8].wall = true
-
 }

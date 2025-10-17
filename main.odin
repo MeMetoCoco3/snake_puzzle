@@ -11,8 +11,8 @@ ROWS 			 :: 10
 COLUMNS 		 :: 10
 CELL_SIZE 		 :: 64
 MAX_NUM_ENTITIES :: 50
-
-
+MAX_NUM_INDEXES  :: 100
+MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
 E_TEXTURE :: enum
 {
 	TL, TM, TR,
@@ -115,22 +115,25 @@ main :: proc()
 	grid_vao := set_grid(ROWS, COLUMNS, offset_x, offset_y)
 
 	entities_zero()
-	set_board()
+	board_set()
 	Game.entity_count = 1
 
 	entity_new_set(.PLAYER, {4, 4})
-	id := entity_new_set(.GOAL, {4, 7})
+	entity_new_set(.BOX, {4, 7})
+	entity_new_set(.BUTTON, {7, 7})
 	
 	entities_print(to = Game.entity_count, p_total = true)
 
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
-	main_loop: for (!glfw.WindowShouldClose(Window.handler)) 
+
+	main_loop: 
+	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
 		current_time := f32(glfw.GetTime())
 		delta_time = current_time - last_frame
 		last_frame = current_time
-		process_input(Window.handler)
+		s_input(Window.handler)
 
 		s_collide()
 
@@ -194,6 +197,15 @@ entity_get_pos     :: proc(id: u32)-> Vec2   { return Game.entities[id].position
 entity_get_texture :: proc(id: u32)-> u32    { return Game.entities[id].texture }
 entity_get_dir     :: proc(id: u32)-> Vec2   { return Game.entities[id].direction }
 
+entity_draw :: proc(id: u32)
+{
+	entity := entity_get(u32(id))
+	vbo_pos := triangle_cell_get_by_pos(entity.position)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, entity.texture)
+	gl.DrawArrays(gl.TRIANGLES, i32(vbo_pos), 6)
+}
+
 entity_move :: proc(id: u32, prev_pos: Vec2, next_pos: Vec2)
 {
 	prev_cell := cell_get_by_pos(prev_pos)
@@ -238,6 +250,29 @@ entity_move :: proc(id: u32, prev_pos: Vec2, next_pos: Vec2)
 	Game.entities[id].position = next_pos
 }
 
+entities_get_from_pos :: proc(pos: Vec2)->(entities: [2]Entity, ids: [2]u32, count: u32)
+{
+	cell := cell_get_by_pos(pos)
+	count = cell.entity_count
+	if cell_is_empty(cell) do return {}, {}, 0
+	if cell.entities_id[0] < 1 do return {}, {}, 0
+
+	if count == 1
+	{
+		ids = {cell.entities_id[0], 0}
+		entities[0] = Game.entities[ids[0]]
+		entities[1] = {}
+	}
+	else 
+	{
+		ids = {cell.entities_id[0], cell.entities_id[1]}
+		entities[0] = Game.entities[ids[0]]
+		entities[1] = Game.entities[ids[1]]
+	}
+
+	return 
+}
+
 entities_zero :: proc(){
 	for i in 0..<len(Game.entities)
 	{
@@ -278,18 +313,64 @@ s_draw :: proc(shader: u32, vao: VAO)
 		}
 	}
 
-	for i in PLAYER_INDEX..<Game.entity_count
+	for i in PLAYER_INDEX + 1..<Game.entity_count
 	{
 		if i == 0 { continue }
-
-		entity := entity_get(u32(i))
-		player_cell := triangle_cell_get_by_pos(entity.position)
-		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, entity.texture)
-		gl.DrawArrays(gl.TRIANGLES, i32(player_cell), 6)
+		entity_draw(u32(i))
 	}
+
+	entity_draw(PLAYER_INDEX)
 	gl.BindVertexArray(0)
 }
+
+s_input :: proc(window: glfw.WindowHandle) 
+{
+	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS 
+	{
+		glfw.SetWindowShouldClose(window, true)
+	}
+
+	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_UP]
+		{
+			entity_set_dir(PLAYER_INDEX, {0, -1})
+			Game.keys_down[glfw.KEY_UP] = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_UP] = false }
+
+	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_DOWN]
+		{
+			entity_set_dir(PLAYER_INDEX, {0, 1})
+			Game.keys_down[glfw.KEY_DOWN] = true
+		}
+	}
+	else { Game.keys_down[glfw.KEY_DOWN] = false }
+
+	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_LEFT]
+		{
+			entity_set_dir(PLAYER_INDEX, {-1, 0})
+			Game.keys_down[glfw.KEY_LEFT] = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_LEFT] = false }
+
+	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_RIGHT]
+		{
+			entity_set_dir(PLAYER_INDEX, {1, 0})
+			Game.keys_down[glfw.KEY_RIGHT] = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_RIGHT] = false }
+}
+
 
 triangle_cell_get_by_pos :: proc(pos: Vec2)->f32{
 	return (pos.y + pos.x * len(Game.board)) * 6
