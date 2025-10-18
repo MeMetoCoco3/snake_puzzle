@@ -191,7 +191,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 
     gl.GetProgramiv(program, gl.LINK_STATUS, &success)
     if success == 0 
-	{
+{
         buf: [512]u8
         gl.GetProgramInfoLog(program, 512, nil, &buf[0])
         fmt.printfln("Shader program link error:\n%v", transmute(string)buf[:])
@@ -277,24 +277,27 @@ out :: proc(line:any=0, loc := #caller_location)
 
 s_collide :: proc()
 {
-	// INFO: First we move Player
 	for i in 0..<Game.entity_count
 	{
 		entity := entity_get(u32(i))
 		if entity.direction == {0, 0} do continue
 
 		new_position := entity.position + entity.direction
-		fmt.println(i, entity.position, new_position)
 		if !is_out(new_position, len(Game.board), len(Game.board[0]))
 		{
 			if !is_wall(new_position)
 			{
 				entities, entities_ids, e_count := entities_get_from_pos(new_position)	
-				for j in e_count-1..=0
+				if i == PLAYER_INDEX {
+					log.info("GOD")
+					log.info(entities_ids)
+					log.info(e_count)
+				}
+				for j := i32(e_count)-1; j >= 0; j -=1
 				{
-					if entities_ids[j] > 1 && entity_get_active(entities_ids[j])
+					fmt.println(j)
+					if entities_ids[j] > 0 && entity_get_active(entities_ids[j])
 					{
-						log.infof("Player collide with: %v, on %v ", entities[j], new_position)
 						if .WIN in entities[j].flags
 						{
 							glfw.SetWindowShouldClose(Window.handler, true)
@@ -302,9 +305,12 @@ s_collide :: proc()
 
 						if .PRESSABLE in entities[j].flags
 						{
-							// TODO: SOMETHING
+							linked_entity := entities[j].class.(Object).linked_entity
+							entity_set_active(linked_entity, true)
+							entity_move(u32(i), entity.position, new_position)
+							entity_set_dir(u32(i), {0, 0})
 						}
-
+						
 						if .PUSHABLE in entities[j].flags
 						{
 							pushed_new_position := new_position + entity.direction
@@ -315,7 +321,6 @@ s_collide :: proc()
 								entity_move(u32(i), entity.position, new_position)
 							} 
 							entity_set_dir(u32(i), {0, 0})
-
 						}
 
 						if .STOMPABLE in entities[j].flags
@@ -326,9 +331,34 @@ s_collide :: proc()
 					}
 				}
 			} else {entity_set_dir(u32(i), {0, 0})}
+			continue
 		}
 	}
 }
+
+s_update_non_moveable_entities :: proc()
+{
+
+	for i in 0..<Game.entity_count
+	{
+		entity := entity_get(u32(i))
+		if entity.direction == {0, 0} 
+		{
+			if .PRESSABLE in entity.flags
+			{
+				_, _, count := entities_get_from_pos(entity.position)
+
+				linked_entity := entity.class.(Object).linked_entity
+				if count > 1 { entity_set_active(linked_entity, true) } 
+				else { entity_set_active(linked_entity, false) }
+			} 
+			continue
+		}
+	}
+
+}
+
+
 
 // add_dir_to_pos :: proc(pos: Vec2, dir: Vec2)-> Vec2
 // {
@@ -336,8 +366,9 @@ s_collide :: proc()
 // }
 
 // WARN: s_move moves only entities which move does not affect others.
-// Moves that affect other entities are done on collision system.
-s_move :: proc(){
+// Moves that affect other entities are done on collision system because the orther in which is done matters
+s_move :: proc()
+{
 	for i in 0..<Game.entity_count
 	{
 		entity := entity_get(u32(i))

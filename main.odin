@@ -66,14 +66,14 @@ Class :: union
 
 Player :: struct{}
 Object :: struct{
-	data_pressable: u32
+	linked_entity: u32
 }
 
 
 Cell :: struct
 {
 	bg_texture: u32,
-	entities_id: [2]u32,
+	entities_id: [3]u32,
 	entity_count: u32,
 	wall: bool
 }
@@ -126,19 +126,16 @@ main :: proc()
 
 	entity_new_set(.PLAYER, {4, 4})
 	entity_new_set(.BOX, {4, 7})
-	// entity_new_set(.BUTTON, {7, 7})
-	// goal_id := entity_new_set(.GOAL, {8,8})
-	// entity_set_active(goal_id, false)
-	// entities_print(to = Game.entity_count, p_total = true)
+	button_id := entity_new_set(.BUTTON, {7, 7})
+	goal_id := entity_new_set(.GOAL, {8,8})
+	entity_set_active(goal_id, false)
+	entity_set_link(button_id, goal_id)
+
+
 
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
-
-
-	entities_print(to = 3, p_total = true)
-
-
-	board_print(0, ROWS-1, 0, COLUMNS-1)
+	
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -151,10 +148,10 @@ main :: proc()
 		{
 			s_collide()
 			s_move()
-			
+			s_update_non_moveable_entities()
 			Game.input_made = false
-			entities_print(to = 3, p_total = true)
-			board_print(0, ROWS-1, 0, COLUMNS-1)
+			// entities_print(to = 3, p_total = true)
+			// board_print(0, ROWS-1, 0, COLUMNS-1)
 		}
 
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
@@ -212,6 +209,20 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2)-> u32
 entities_count_on_cell :: proc(pos: Vec2)-> u32    	  { return Game.board[i32(pos.y)][i32(pos.x)].entity_count }
 entity_set_dir 		   :: proc(id: u32, dir: Vec2)    { Game.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool)  { Game.entities[id].active = state }
+entity_set_link :: proc(id_src: u32, id_dst: u32)
+{
+	
+	switch &obj in Game.entities[id_src].class {
+		case Object:
+			fmt.println("HERE WE ARE: ", id_dst)
+			obj.linked_entity = id_dst
+		case Player:
+			log.infof("Cannot link id: %v into id: %v", id_dst, id_src)
+			log.infof("DESTINY ENTITY: %v", entity_get(id_dst))
+			log.infof("SOURCE ENTITY: %v", entity_get(id_src))
+	}
+}
+
 
 entity_get         :: proc(id: u32)-> Entity	 { return Game.entities[id] 		  }
 entity_get_active  :: proc(id: u32)-> bool	 	 { return Game.entities[id].active	  }
