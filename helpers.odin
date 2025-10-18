@@ -282,34 +282,26 @@ s_collide :: proc()
 	{
 		entity := entity_get(u32(i))
 		if entity.direction == {0, 0} do continue
-
+		entity_set_moved(u32(i), false)
 		new_position := entity.position + entity.direction
 		if !is_out(new_position, len(Game.board), len(Game.board[0]))
 		{
 			if !is_wall(new_position)
 			{
 				entities, entities_ids, e_count := entities_get_from_pos(new_position)	
-				if i == PLAYER_INDEX {
-					log.info("GOD")
-					log.info(entities_ids)
-					log.info(e_count)
-				}
+
 				for j := i32(e_count)-1; j >= 0; j -=1
 				{
-					fmt.println(j)
 					if entities_ids[j] > 0 && entity_get_active(entities_ids[j])
 					{
-						if .WIN in entities[j].flags
-						{
-							glfw.SetWindowShouldClose(Window.handler, true)
-						}
-
+						if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+						if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 						if .PRESSABLE in entities[j].flags
 						{
 							linked_entity := entities[j].class.(Object).linked_entity
 							entity_set_active(linked_entity, true)
 							entity_move(u32(i), entity.position, new_position)
-							entity_set_dir(u32(i), {0, 0})
+							entity_set_moved(u32(i), true)
 						}
 						
 						if .PUSHABLE in entities[j].flags
@@ -320,9 +312,17 @@ s_collide :: proc()
 							{
 								entity_move(entities_ids[j], new_position, pushed_new_position)
 								entity_move(u32(i), entity.position, new_position)
+								entity_set_moved(u32(i), true)
 							} 
-							entity_set_dir(u32(i), {0, 0})
+							else
+							{
+								entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y})
+							}
 						}
+
+
+
+			
 
 						if .STOMPABLE in entities[j].flags
 						{
@@ -331,11 +331,18 @@ s_collide :: proc()
 
 					}
 				}
-			} else {entity_set_dir(u32(i), {0, 0})}
+			} 
+			else 
+			{
+				if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y })
+				if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0})
+			}
 			continue
 		}
 	}
 }
+
+entity_set_moved :: proc(id: u32, state: bool){Game.entities[id].moved = state}
 
 s_update_non_moveable_entities :: proc()
 {
@@ -373,10 +380,10 @@ s_move :: proc()
 	for i in 0..<Game.entity_count
 	{
 		entity := entity_get(u32(i))
-		if entity.direction != {0, 0} 
+		if entity.direction != {0, 0} && !entity.moved 
 		{
 			entity_move(u32(i), entity.position, entity.position + entity.direction)
-			entity_set_dir(u32(i), {0, 0})
+			// if .MOVER not_in entity.flags do entity_set_dir(u32(i), {0, 0})
 		}
 	}
 }

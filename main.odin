@@ -21,7 +21,7 @@ E_TEXTURE :: enum
 	DIRTY_PIG,
 	CLEAN_PIG,
 	BOX, BUTTON,
-	GOAL
+	GOAL, CROCO,
 }
 
 E_ENTITY :: enum
@@ -29,7 +29,8 @@ E_ENTITY :: enum
 	PLAYER,
 	GOAL,
 	BUTTON,
-	BOX
+	BOX,
+	CROCO
 }
 
 
@@ -43,6 +44,7 @@ Actions :: enum
 	PUSHABLE,
 	MOVER,
 	GROUNDED,
+	ENEMY
 }
 
 ActionFlags :: bit_set[Actions]
@@ -56,6 +58,8 @@ Entity :: struct
 
 	texture: u32,
 	uv_flip: Vec2,
+
+	moved: bool,
 
 	moving: bool,
 	active: bool,
@@ -117,6 +121,7 @@ main :: proc()
 	load_texture("assets/2D/box.png", .BOX)
 	load_texture("assets/2D/button.png", .BUTTON)
 	load_texture("assets/2D/flag.png", .GOAL)
+	load_texture("assets/2D/crocodile.png", .CROCO)
 
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
@@ -128,9 +133,10 @@ main :: proc()
 	Game.entity_count = 1
 
 	entity_new_set(.PLAYER, {4, 4})
-	entity_new_set(.BOX, {4, 7})
 	entity_new_set(.BOX, {4, 6})
-	button_id := entity_new_set(.BUTTON, {7, 7})
+	croco_id := entity_new_set(.CROCO, {4,3})
+	entity_set_dir(croco_id, {1, 0})
+	button_id := entity_new_set(.BUTTON, {7, 3})
 	goal_id := entity_new_set(.GOAL, {8,8})
 	entity_set_active(goal_id, false)
 	entity_set_link(button_id, goal_id)
@@ -184,6 +190,7 @@ entity_new :: proc(class: E_ENTITY, position: Vec2)-> (Entity, u32)
 		.GOAL = Entity{class = Object{}, flags = {.WIN}, position = {-1, -1}, texture = textures[.GOAL], active = true, uv_flip = {1, 1}},
 		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .GROUNDED}, position = {-1, -1}, texture = textures[.BUTTON], active = true, uv_flip = {1, 1}},
 		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX], active = true, uv_flip = {1, 1}},
+		.CROCO = Entity{class = Object{}, flags = {.MOVER, .ENEMY}, position = {-1, -1}, texture = textures[.CROCO], active = true, uv_flip = {1, 1}},
 	}
 
 	new_entity := entity_prefab[class]
