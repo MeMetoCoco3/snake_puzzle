@@ -53,7 +53,10 @@ Entity :: struct
 	flags: ActionFlags,
 	position: Vec2,
 	direction: Vec2,
+
 	texture: u32,
+	uv_flip: Vec2,
+
 	moving: bool,
 	active: bool,
 }
@@ -126,6 +129,7 @@ main :: proc()
 
 	entity_new_set(.PLAYER, {4, 4})
 	entity_new_set(.BOX, {4, 7})
+	entity_new_set(.BOX, {4, 6})
 	button_id := entity_new_set(.BUTTON, {7, 7})
 	goal_id := entity_new_set(.GOAL, {8,8})
 	entity_set_active(goal_id, false)
@@ -176,10 +180,10 @@ entity_new :: proc(class: E_ENTITY, position: Vec2)-> (Entity, u32)
 {
 	entity_prefab := #sparse[E_ENTITY]Entity \
 	{
-		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG], active = true},
-		.GOAL = Entity{class = Object{}, flags = {.WIN}, position = {-1, -1}, texture = textures[.GOAL], active = true},
-		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .GROUNDED}, position = {-1, -1}, texture = textures[.BUTTON], active = true},
-		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX], active = true},
+		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG], active = true, uv_flip = {1, 1}},
+		.GOAL = Entity{class = Object{}, flags = {.WIN}, position = {-1, -1}, texture = textures[.GOAL], active = true, uv_flip = {1, 1}},
+		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .GROUNDED}, position = {-1, -1}, texture = textures[.BUTTON], active = true, uv_flip = {1, 1}},
+		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX], active = true, uv_flip = {1, 1}},
 	}
 
 	new_entity := entity_prefab[class]
@@ -209,6 +213,8 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2)-> u32
 entities_count_on_cell :: proc(pos: Vec2)-> u32    	  { return Game.board[i32(pos.y)][i32(pos.x)].entity_count }
 entity_set_dir 		   :: proc(id: u32, dir: Vec2)    { Game.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool)  { Game.entities[id].active = state }
+entity_set_uv 	:: proc(id: u32, u_flip: Vec2)        { Game.entities[id].uv_flip = u_flip }
+
 entity_set_link :: proc(id_src: u32, id_dst: u32)
 {
 	
@@ -230,10 +236,13 @@ entity_get_pos     :: proc(id: u32)-> Vec2		 { return Game.entities[id].position
 entity_get_texture :: proc(id: u32)-> u32		 { return Game.entities[id].texture   }
 entity_get_dir     :: proc(id: u32)-> Vec2		 { return Game.entities[id].direction }
 
-entity_draw :: proc(id: u32)
+entity_draw :: proc(id: u32, program: u32)
 {
 	entity := entity_get(u32(id))
 	vbo_pos := triangle_cell_get_by_pos(entity.position)
+	
+	set_vec2(program, "u_flip", entity.uv_flip)
+
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, entity.texture)
 	gl.DrawArrays(gl.TRIANGLES, i32(vbo_pos), 6)
@@ -259,6 +268,12 @@ entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2)
 	Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[e_next_count] = id
 	Game.board[i32(next_pos.y)][int(next_pos.x)].entity_count += 1
 	Game.entities[id].position = next_pos
+
+
+	// flip = (-1, 1)
+	// no flip = (1, 1)
+	dir := curr_pos - next_pos
+	if dir.y == 0 do entity_set_uv(u32(id), {-dir.x, 1})
 }
 
 entities_get_from_pos :: proc(pos: Vec2)->(entities: [2]Entity, ids: [2]u32, count: u32)
@@ -328,6 +343,8 @@ s_draw :: proc(shader: u32, vao: VAO)
 	set_mat4(shader, "ortho", &ortho)
 
 	n:i32=0
+
+	set_vec2(shader, "u_flip", {1, 1})
 	for row, i in Game.board
 	{
 		for cell, j in row
@@ -342,10 +359,10 @@ s_draw :: proc(shader: u32, vao: VAO)
 	for i in PLAYER_INDEX + 1..<Game.entity_count
 	{
 		if i == 0 || !entity_get_active(u32(i)) { continue }
-		entity_draw(u32(i))
+		entity_draw(u32(i), shader)
 	}
 
-	entity_draw(PLAYER_INDEX)
+	entity_draw(PLAYER_INDEX, shader)
 	gl.BindVertexArray(0)
 }
 

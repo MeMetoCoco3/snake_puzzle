@@ -24,6 +24,7 @@ HEIGHT :: 1000
 delta_time: f32
 last_frame: f32
 
+set_vec2 :: proc(program: u32, loc: cstring, val: Vec2) 		   { gl.Uniform2f(gl.GetUniformLocation(program, loc), val.x, val.y) }
 set_vec3 :: proc(program: u32, loc: cstring, val: Vec3) 		   { gl.Uniform3f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z) }
 set_vec4 :: proc(program: u32, loc: cstring, val: Vec4) 		   { gl.Uniform4f(gl.GetUniformLocation(program, loc), val.x, val.y, val.z, val.y) }
 set_mat4 :: proc(program: u32, loc: cstring, val: ^matrix[4, 4]f32) { gl.UniformMatrix4fv(gl.GetUniformLocation(program, loc), 1, gl.FALSE, &val[0, 0]) }
