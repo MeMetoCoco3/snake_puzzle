@@ -2,7 +2,6 @@ package main
 
 import "core:log"
 import "core:fmt"
-import "core:os"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
@@ -13,6 +12,7 @@ CELL_SIZE 		 :: 64
 MAX_NUM_ENTITIES :: 50
 MAX_NUM_INDEXES  :: 100
 MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
+
 E_TEXTURE :: enum
 {
 	TL, TM, TR,
@@ -40,7 +40,9 @@ Actions :: enum
 	WIN,
 	STOMPABLE, 
 	PRESSABLE,
-	PUSHABLE
+	PUSHABLE,
+	MOVER,
+	GROUNDED,
 }
 
 ActionFlags :: bit_set[Actions]
@@ -53,6 +55,7 @@ Entity :: struct
 	direction: Vec2,
 	texture: u32,
 	moving: bool,
+	active: bool,
 }
 
 Class :: union
@@ -62,7 +65,9 @@ Class :: union
 }
 
 Player :: struct{}
-Object :: struct{}
+Object :: struct{
+	data_pressable: u32
+}
 
 
 Cell :: struct
@@ -81,6 +86,7 @@ Window : struct
 
 Game : struct
 {
+	input_made: bool,
 	board: [ROWS][COLUMNS]Cell,
 	entity_count: i32,
 	entities: [50]Entity,
@@ -120,13 +126,19 @@ main :: proc()
 
 	entity_new_set(.PLAYER, {4, 4})
 	entity_new_set(.BOX, {4, 7})
-	entity_new_set(.BUTTON, {7, 7})
-	
-	entities_print(to = Game.entity_count, p_total = true)
+	// entity_new_set(.BUTTON, {7, 7})
+	// goal_id := entity_new_set(.GOAL, {8,8})
+	// entity_set_active(goal_id, false)
+	// entities_print(to = Game.entity_count, p_total = true)
 
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
 
+
+	entities_print(to = 3, p_total = true)
+
+
+	board_print(0, ROWS-1, 0, COLUMNS-1)
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -135,15 +147,24 @@ main :: proc()
 		last_frame = current_time
 		s_input(Window.handler)
 
-		s_collide()
+		if Game.input_made
+		{
+			s_collide()
+			s_move()
+			
+			Game.input_made = false
+			entities_print(to = 3, p_total = true)
+			board_print(0, ROWS-1, 0, COLUMNS-1)
+		}
 
-		// RENDER
 		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		s_draw(grid_program, grid_vao)
+
 		glfw.SwapBuffers(Window.handler)
 		glfw.PollEvents() 
+
 	}
 	return
 }
@@ -151,18 +172,17 @@ main :: proc()
 //////////////
 // ENTITIES //
 //////////////
-
 EMPTY_INDEX :: 0
 PLAYER_INDEX :: 1
 
-entity_new :: proc(class: E_ENTITY, position: Vec2)->(Entity, u32)
+entity_new :: proc(class: E_ENTITY, position: Vec2)-> (Entity, u32)
 {
 	entity_prefab := #sparse[E_ENTITY]Entity \
 	{
-		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG]},
-		.GOAL = Entity{class = Object{}, flags = {.WIN, .STOMPABLE}, position = {-1, -1}, texture = textures[.GOAL]},
-		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .STOMPABLE}, position = {-1, -1}, texture = textures[.BUTTON]},
-		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX]},
+		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG], active = true},
+		.GOAL = Entity{class = Object{}, flags = {.WIN}, position = {-1, -1}, texture = textures[.GOAL], active = true},
+		.BUTTON = Entity{class = Object{}, flags = {.PRESSABLE, .GROUNDED}, position = {-1, -1}, texture = textures[.BUTTON], active = true},
+		.BOX = Entity{class = Object{}, flags = {.PUSHABLE}, position = {-1, -1}, texture = textures[.BOX], active = true},
 	}
 
 	new_entity := entity_prefab[class]
@@ -189,13 +209,15 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2)-> u32
 	return id
 }
 
-entities_count_on_cell :: proc(pos: Vec2)-> u32     { return Game.board[i32(pos.y)][i32(pos.x)].entity_count }
-entity_set_dir 		   :: proc(id: u32, dir: Vec2) { Game.entities[id].direction = dir }
+entities_count_on_cell :: proc(pos: Vec2)-> u32    	  { return Game.board[i32(pos.y)][i32(pos.x)].entity_count }
+entity_set_dir 		   :: proc(id: u32, dir: Vec2)    { Game.entities[id].direction = dir  }
+entity_set_active      :: proc(id: u32, state: bool)  { Game.entities[id].active = state }
 
-entity_get         :: proc(id: u32)-> Entity { return Game.entities[id] }
-entity_get_pos     :: proc(id: u32)-> Vec2   { return Game.entities[id].position }
-entity_get_texture :: proc(id: u32)-> u32    { return Game.entities[id].texture }
-entity_get_dir     :: proc(id: u32)-> Vec2   { return Game.entities[id].direction }
+entity_get         :: proc(id: u32)-> Entity	 { return Game.entities[id] 		  }
+entity_get_active  :: proc(id: u32)-> bool	 	 { return Game.entities[id].active	  }
+entity_get_pos     :: proc(id: u32)-> Vec2		 { return Game.entities[id].position  }
+entity_get_texture :: proc(id: u32)-> u32		 { return Game.entities[id].texture   }
+entity_get_dir     :: proc(id: u32)-> Vec2		 { return Game.entities[id].direction }
 
 entity_draw :: proc(id: u32)
 {
@@ -206,47 +228,25 @@ entity_draw :: proc(id: u32)
 	gl.DrawArrays(gl.TRIANGLES, i32(vbo_pos), 6)
 }
 
-entity_move :: proc(id: u32, prev_pos: Vec2, next_pos: Vec2)
+entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2)
 {
-	prev_cell := cell_get_by_pos(prev_pos)
+	curr_cell := cell_get_by_pos(curr_pos)
 	next_cell := cell_get_by_pos(next_pos)
 
-	e_prev_count := prev_cell.entity_count
-	if (e_prev_count) == 0
+	e_prev_count := curr_cell.entity_count
+
+	for i in 0..< e_prev_count 
 	{
-		Game.board[i32(prev_pos.y)][int(prev_pos.x)].entities_id[0] = EMPTY_INDEX
-	} 
-	else if (e_prev_count) >= 1 
-	{
-		for i in 0..< e_prev_count {
-			if (prev_cell.entities_id[i] == id) {	
-				Game.board[i32(prev_pos.y)][int(prev_pos.x)].entities_id[i] = EMPTY_INDEX
-			}
-		}	
-	} 
-	else 
-	{
-		os.exit(1)
-	}
+		if (curr_cell.entities_id[i] == id) 
+		{
+			Game.board[i32(curr_pos.y)][int(curr_pos.x)].entities_id[i] = EMPTY_INDEX
+			Game.board[i32(curr_pos.y)][int(curr_pos.x)].entity_count -= 1
+		}
+	}	
 
 	e_next_count := next_cell.entity_count
-	if (e_next_count == 0)
-	{
-		Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[0] = id
-	} 
-	else if (e_next_count >= 1)
-	{
-		for i in 0..< e_next_count{
-			if next_cell.entities_id[i] == id {	
-				Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[i] = id
-			}
-		}	
-	} 
-	else 
-	{
-		os.exit(1)
-	}
-
+	Game.board[i32(next_pos.y)][int(next_pos.x)].entities_id[e_next_count] = id
+	Game.board[i32(next_pos.y)][int(next_pos.x)].entity_count += 1
 	Game.entities[id].position = next_pos
 }
 
@@ -290,6 +290,21 @@ entities_print::proc(from:i32 = 0, to:i32 = MAX_NUM_ENTITIES, p_total:bool = fal
 	}
 }
 
+board_print:: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1){
+	ROW_TO := row_to
+	COL_TO := column_to
+	if ROW_TO == -1 do ROW_TO = len(Game.board)
+	if COL_TO == -1 do COL_TO = len(Game.board[0])
+	
+	for i in row_start..= ROW_TO
+	{
+		for j in column_start..= COL_TO do fmt.printf("%v ", Game.board[i][j].entities_id[0])
+		fmt.println()
+	}
+	
+}
+
+
 /////////////
 // SYSTEMS //
 /////////////
@@ -315,7 +330,7 @@ s_draw :: proc(shader: u32, vao: VAO)
 
 	for i in PLAYER_INDEX + 1..<Game.entity_count
 	{
-		if i == 0 { continue }
+		if i == 0 || !entity_get_active(u32(i)) { continue }
 		entity_draw(u32(i))
 	}
 
@@ -336,6 +351,7 @@ s_input :: proc(window: glfw.WindowHandle)
 		{
 			entity_set_dir(PLAYER_INDEX, {0, -1})
 			Game.keys_down[glfw.KEY_UP] = true
+			Game.input_made = true
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_UP] = false }
@@ -346,6 +362,7 @@ s_input :: proc(window: glfw.WindowHandle)
 		{
 			entity_set_dir(PLAYER_INDEX, {0, 1})
 			Game.keys_down[glfw.KEY_DOWN] = true
+			Game.input_made = true
 		}
 	}
 	else { Game.keys_down[glfw.KEY_DOWN] = false }
@@ -356,6 +373,7 @@ s_input :: proc(window: glfw.WindowHandle)
 		{
 			entity_set_dir(PLAYER_INDEX, {-1, 0})
 			Game.keys_down[glfw.KEY_LEFT] = true
+			Game.input_made = true
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_LEFT] = false }
@@ -366,18 +384,33 @@ s_input :: proc(window: glfw.WindowHandle)
 		{
 			entity_set_dir(PLAYER_INDEX, {1, 0})
 			Game.keys_down[glfw.KEY_RIGHT] = true
+			Game.input_made = true
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_RIGHT] = false }
 }
 
 
-triangle_cell_get_by_pos :: proc(pos: Vec2)->f32{
+triangle_cell_get_by_pos :: proc(pos: Vec2)-> f32
+{
 	return (pos.y + pos.x * len(Game.board)) * 6
 }
 
-cell_get_by_pos :: proc(pos: Vec2)->Cell{
-	return Game.board[i32(pos.y)][i32(pos.x)]
+
+cell_is_empty :: proc(cell: Cell)-> bool{ return cell.entity_count == 0 }
+cell_empty_or_grounded :: proc(pos: Vec2)-> (e_or_g: bool = true) 
+{
+	cell := cell_get_by_pos(pos)
+	
+	for i in 0..<cell.entity_count
+	{
+		id := cell.entities_id[i]
+		entity := entity_get(id)
+		if .GROUNDED not_in entity.flags do e_or_g = false
+	}
+	return 
 }
+
+cell_get_by_pos :: proc(pos: Vec2)-> Cell { return Game.board[i32(pos.y)][i32(pos.x)] }
 
 

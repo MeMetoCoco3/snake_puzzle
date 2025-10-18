@@ -275,54 +275,89 @@ out :: proc(line:any=0, loc := #caller_location)
 	os.exit(1)
 }
 
-
 s_collide :: proc()
 {
 	// INFO: First we move Player
-	player := entity_get(PLAYER_INDEX)
-	new_position := player.position + player.direction 
-	if !is_out(new_position, len(Game.board), len(Game.board[0])) && player.direction != {0, 0} 
+	for i in 0..<Game.entity_count
 	{
-		entities, entities_ids, e_count := entities_get_from_pos(new_position)	
+		entity := entity_get(u32(i))
+		if entity.direction == {0, 0} do continue
 
-		for i in 0..<e_count
+		new_position := entity.position + entity.direction
+		fmt.println(i, entity.position, new_position)
+		if !is_out(new_position, len(Game.board), len(Game.board[0]))
 		{
-			if entities_ids[i] > 1 
+			if !is_wall(new_position)
 			{
-				log.infof("Player collide with: %v, on %v ", entities[i], new_position)
-				if .WIN in entities[i].flags
+				entities, entities_ids, e_count := entities_get_from_pos(new_position)	
+				for j in e_count-1..=0
 				{
-					glfw.SetWindowShouldClose(Window.handler, true)
-				}
+					if entities_ids[j] > 1 && entity_get_active(entities_ids[j])
+					{
+						log.infof("Player collide with: %v, on %v ", entities[j], new_position)
+						if .WIN in entities[j].flags
+						{
+							glfw.SetWindowShouldClose(Window.handler, true)
+						}
 
-			}
-		}
-		if !is_wall(new_position) {
-		entity_move(PLAYER_INDEX, player.position, new_position)
-			fmt.println("LMAYO")
+						if .PRESSABLE in entities[j].flags
+						{
+							// TODO: SOMETHING
+						}
+
+						if .PUSHABLE in entities[j].flags
+						{
+							pushed_new_position := new_position + entity.direction
+							ok_to_push := cell_empty_or_grounded(pushed_new_position)
+							if !is_wall(new_position+entity.direction) && ok_to_push
+							{
+								entity_move(entities_ids[j], new_position, pushed_new_position)
+								entity_move(u32(i), entity.position, new_position)
+							} 
+							entity_set_dir(u32(i), {0, 0})
+
+						}
+
+						if .STOMPABLE in entities[j].flags
+						{
+
+						}
+
+					}
+				}
+			} else {entity_set_dir(u32(i), {0, 0})}
 		}
 	}
-	entity_set_dir(PLAYER_INDEX, {0, 0})
-
-	// TODO: Move rest 
 }
 
-is_wall :: proc(pos: Vec2)->bool
-{
-	return Game.board[int(pos.y)][int(pos.x)].wall
+// add_dir_to_pos :: proc(pos: Vec2, dir: Vec2)-> Vec2
+// {
+// 	return Vec2{pos.x + dir.y, pos.y + dir.x}
+// }
 
+// WARN: s_move moves only entities which move does not affect others.
+// Moves that affect other entities are done on collision system.
+s_move :: proc(){
+	for i in 0..<Game.entity_count
+	{
+		entity := entity_get(u32(i))
+		if entity.direction != {0, 0} 
+		{
+			entity_move(u32(i), entity.position, entity.position + entity.direction)
+			entity_set_dir(u32(i), {0, 0})
+		}
+	}
 }
+
+is_wall :: proc(pos: Vec2)->bool { return Game.board[int(pos.y)][int(pos.x)].wall }
 
  
 MoveRest :: proc(){}
 
-
-cell_is_empty :: proc(cell: Cell)-> bool{ return cell.entity_count == 0 }
-
 is_out :: proc(pos: Vec2, rows, cols: i32)->bool
 {
-	if pos.y < 0 || pos.y >= f32(cols) do return true
-	if pos.x < 0 || pos.x >= f32(rows) do return true
+	if pos.y < 0 || pos.y >= f32(rows) do return true
+	if pos.x < 0 || pos.x >= f32(cols) do return true
 	return false
 }
 
