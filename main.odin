@@ -158,7 +158,7 @@ main :: proc()
 		{
 			s_collide()
 			s_move()
-			s_update_non_moveable_entities()
+			s_static_acctions()
 			Game.input_made = false
 			// entities_print(to = 3, p_total = true)
 			// board_print(0, ROWS-1, 0, COLUMNS-1)

@@ -344,7 +344,7 @@ s_collide :: proc()
 
 entity_set_moved :: proc(id: u32, state: bool){Game.entities[id].moved = state}
 
-s_update_non_moveable_entities :: proc()
+s_static_acctions :: proc()
 {
 
 	for i in 0..<Game.entity_count
