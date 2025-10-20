@@ -12,6 +12,8 @@ Vec2 :: [2]f32
 Vec3 :: [3]f32
 Vec4 :: [4]f32
 
+Color:: [4]byte
+
 VBO :: u32
 VAO :: u32
 EBO :: u32
@@ -54,7 +56,6 @@ init_glfw :: proc()
 
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	gl.Viewport(0, 0, WIDTH, HEIGHT)
-
 }
 
 end_glfw :: proc() 
@@ -407,36 +408,80 @@ board_set :: proc()
 		for j in 0..<COLUMNS
 		{
 			cell := &Game.board[i][j]
-			if j == 1 && (i >= 1 && i <= 8)
+			if j == 0 && (i >= 0 && i <= 9)
 			{
 				cell.bg_texture = textures[.TM]
+				cell.wall = true
 			}
-			else if j == 8 && (i >= 1 && i <= 8)
+			else if j == 9 && (i >= 0 && i <= 9)
 			{
 				cell.bg_texture = textures[.BM]
+				cell.wall = true
 			}
-			else if i == 1 && (j >= 1 && j <= 8)
+			else if i == 0 && (j >= 0 && j <= 9)
 			{
 				cell.bg_texture = textures[.ML]
+				cell.wall = true
 			}
-			else if i == 8 && (j >= 1 && j <= 8)
+			else if i == 9 && (j >= 0 && j <= 9)
 			{
 				cell.bg_texture = textures[.MR]
+				cell.wall = true
 			}
-			else if i < 8 && i > 1 && j < 8 && j > 1
+			else if i < 9 && i > 0 && j < 9 && j > 0
 			{
 				cell.bg_texture = textures[.MM]
 			} 
-			else 
-			{ 
-				cell.bg_texture = textures[.DIRTY_PIG] 
-				cell.wall = true
-			}
+			else{ cell.wall = false }
 		}
 	}
 
-	Game.board[1][1].bg_texture = textures[.TL]
-	Game.board[1][8].bg_texture = textures[.BL]
-	Game.board[8][1].bg_texture = textures[.TR]
-	Game.board[8][8].bg_texture = textures[.BR]
+	Game.board[0][0].bg_texture = textures[.TL]
+	Game.board[0][9].bg_texture = textures[.BL]
+	Game.board[9][0].bg_texture = textures[.TR]
+	Game.board[9][9].bg_texture = textures[.BR]
 }
+
+
+get_pixel_from_image:: proc(name:string, x:i32, y:i32)-> (color: Color){
+	width, height, n_components: i32
+
+	c_path := strings.clone_to_cstring(name, context.temp_allocator)
+
+	data  := stbi.load(c_path, &width, &height, &n_components, 0)
+	if (data!=nil) 
+	{
+	format : u32
+		switch n_components
+		{
+		case 1:
+			fmt.printfln("Not enough info:  for image: %v, number of components: %v", name,  n_components)
+			os.exit(1)
+		case 3:
+			format = gl.RGB
+		case 4:
+			format = gl.RGBA
+		case:
+			fmt.printfln("Not defined number of components: %v, for image: %v", n_components, name)
+			os.exit(1)
+		}
+
+		index := (y * width + x) * n_components
+		color.x = data[0+index]
+		color.y = data[1+index]
+		color.z = data[2+index]
+
+		if format == gl.RGBA do color.w = data[3+index]
+
+		stbi.image_free(data)
+	}
+	else
+	{
+		fmt.printfln("Error loading texture '%v'.", name)
+		fmt.printfln("From path: %s", c_path)
+		os.exit(1)
+	}
+
+	return
+}
+

@@ -2,6 +2,7 @@ package main
 
 import "core:log"
 import "core:fmt"
+import "core:os"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
@@ -123,6 +124,8 @@ main :: proc()
 	load_texture("assets/2D/flag.png", .GOAL)
 	load_texture("assets/2D/crocodile.png", .CROCO)
 
+	bg_color := get_pixel_from_image("assets/2D/tl.png", 0, 0)
+
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
 	offset_x, offset_y := get_offset(ROWS, COLUMNS)
@@ -163,8 +166,8 @@ main :: proc()
 			// entities_print(to = 3, p_total = true)
 			// board_print(0, ROWS-1, 0, COLUMNS-1)
 		}
-
-		gl.ClearColor(0.2, 0.3, 0.3, 1.0)
+			
+		clear_color(bg_color)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		s_draw(grid_program, grid_vao)
@@ -447,5 +450,9 @@ cell_empty_or_grounded :: proc(pos: Vec2)-> (e_or_g: bool = true)
 }
 
 cell_get_by_pos :: proc(pos: Vec2)-> Cell { return Game.board[i32(pos.y)][i32(pos.x)] }
+
+clear_color :: proc(color:Color){gl.ClearColor(f32(color.x)/255, f32(color.y)/255, f32(color.z)/255, f32(color.w)/255)}
+
+
 
 
