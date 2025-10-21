@@ -1,7 +1,7 @@
 package main
 import "core:c"
 import "core:fmt"
-import "core:log"
+// import "core:log"
 import "core:os"
 import "core:strings"
 import gl "vendor:OpenGL"
@@ -277,48 +277,45 @@ out :: proc(line:any=0, loc := #caller_location)
 	os.exit(1)
 }
 
-s_collide :: proc()
+s_collide :: proc(scene: ^Scene)
 {
-	for i in 0..<Game.entity_count
+	for i in 0..<scene.entity_count
 	{
-		entity := entity_get(u32(i))
+		entity := entity_get(u32(i), scene)
 		if entity.direction == {0, 0} do continue
-		entity_set_moved(u32(i), false)
+		entity_set_moved(u32(i), false, scene)
 		new_position := entity.position + entity.direction
-		if !is_out(new_position, len(Game.board), len(Game.board[0]))
+		if !is_out(new_position, len(scene.board), len(scene.board[0]))
 		{
-			if !is_wall(new_position)
+			if !is_wall(new_position, scene^)
 			{
-				entities, entities_ids, e_count := entities_get_from_pos(new_position)	
+				entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
 
 				for j := i32(e_count)-1; j >= 0; j -=1
 				{
-					if entities_ids[j] > 0 && entity_get_active(entities_ids[j])
+					if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 					{
 						if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 						if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 						if .PRESSABLE in entities[j].flags
 						{
 							linked_entity := entities[j].class.(Object).linked_entity
-							entity_set_active(linked_entity, true)
-							entity_move(u32(i), entity.position, new_position)
-							entity_set_moved(u32(i), true)
+							entity_set_active(linked_entity, true, scene)
+							entity_move(u32(i), entity.position, new_position, scene)
+							entity_set_moved(u32(i), true, scene)
 						}
 						
 						if .PUSHABLE in entities[j].flags
 						{
 							pushed_new_position := new_position + entity.direction
-							ok_to_push := cell_empty_or_grounded(pushed_new_position)
-							if !is_wall(new_position+entity.direction) && ok_to_push
+							ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
+							if !is_wall(new_position+entity.direction, scene^) && ok_to_push
 							{
-								entity_move(entities_ids[j], new_position, pushed_new_position)
-								entity_move(u32(i), entity.position, new_position)
-								entity_set_moved(u32(i), true)
+								entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+								entity_move(u32(i), entity.position, new_position, scene)
+								entity_set_moved(u32(i), true, scene)
 							} 
-							else
-							{
-								entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y})
-							}
+							else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
 						}
 
 
@@ -335,31 +332,31 @@ s_collide :: proc()
 			} 
 			else 
 			{
-				if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y })
-				if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0})
+				if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y }, scene)
+				if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0}, scene)
 			}
 			continue
 		}
 	}
 }
 
-entity_set_moved :: proc(id: u32, state: bool){Game.entities[id].moved = state}
+entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
 
-s_static_acctions :: proc()
+s_static_acctions :: proc(scene: ^Scene)
 {
 
-	for i in 0..<Game.entity_count
+	for i in 0..<scene.entity_count
 	{
-		entity := entity_get(u32(i))
+		entity := entity_get(u32(i), scene)
 		if entity.direction == {0, 0} 
 		{
 			if .PRESSABLE in entity.flags
 			{
-				_, _, count := entities_get_from_pos(entity.position)
+				_, _, count := entities_get_from_pos(entity.position, scene)
 
 				linked_entity := entity.class.(Object).linked_entity
-				if count > 1 { entity_set_active(linked_entity, true) } 
-				else { entity_set_active(linked_entity, false) }
+				if count > 1 { entity_set_active(linked_entity, true, scene) } 
+				else { entity_set_active(linked_entity, false, scene) }
 			} 
 			continue
 		}
@@ -376,20 +373,20 @@ s_static_acctions :: proc()
 
 // WARN: s_move moves only entities which move does not affect others.
 // Moves that affect other entities are done on collision system because the orther in which is done matters
-s_move :: proc()
+s_move :: proc(scene: ^Scene)
 {
-	for i in 0..<Game.entity_count
+	for i in 0..<scene.entity_count
 	{
-		entity := entity_get(u32(i))
+		entity := entity_get(u32(i), scene)
 		if entity.direction != {0, 0} && !entity.moved 
 		{
-			entity_move(u32(i), entity.position, entity.position + entity.direction)
+			entity_move(u32(i), entity.position, entity.position + entity.direction, scene)
 			// if .MOVER not_in entity.flags do entity_set_dir(u32(i), {0, 0})
 		}
 	}
 }
 
-is_wall :: proc(pos: Vec2)->bool { return Game.board[int(pos.y)][int(pos.x)].wall }
+is_wall :: proc(pos: Vec2, scene: Scene)->bool { return scene.board[int(pos.y)][int(pos.x)].wall }
 
  
 MoveRest :: proc(){}
@@ -401,47 +398,46 @@ is_out :: proc(pos: Vec2, rows, cols: i32)->bool
 	return false
 }
 
-board_set :: proc()
-{
-	for i in 0..<ROWS
-	{
-		for j in 0..<COLUMNS
-		{
-			cell := &Game.board[i][j]
-			if j == 0 && (i >= 0 && i <= 9)
-			{
-				cell.bg_texture = textures[.TM]
-				cell.wall = true
-			}
-			else if j == 9 && (i >= 0 && i <= 9)
-			{
-				cell.bg_texture = textures[.BM]
-				cell.wall = true
-			}
-			else if i == 0 && (j >= 0 && j <= 9)
-			{
-				cell.bg_texture = textures[.ML]
-				cell.wall = true
-			}
-			else if i == 9 && (j >= 0 && j <= 9)
-			{
-				cell.bg_texture = textures[.MR]
-				cell.wall = true
-			}
-			else if i < 9 && i > 0 && j < 9 && j > 0
-			{
-				cell.bg_texture = textures[.MM]
-			} 
-			else{ cell.wall = false }
-		}
-	}
-
-	Game.board[0][0].bg_texture = textures[.TL]
-	Game.board[0][9].bg_texture = textures[.BL]
-	Game.board[9][0].bg_texture = textures[.TR]
-	Game.board[9][9].bg_texture = textures[.BR]
-}
-
+// board_set :: proc()
+// {
+// 	for i in 0..<ROWS
+// 	{
+// 		for j in 0..<COLUMNS
+// 		{
+// 			cell := &Game.scene.board[i][j]
+// 			if j == 0 && (i >= 0 && i <= 9)
+// 			{
+// 				cell.bg_texture = textures[.TM]
+// 				cell.wall = true
+// 			}
+// 			else if j == 9 && (i >= 0 && i <= 9)
+// 			{
+// 				cell.bg_texture = textures[.BM]
+// 				cell.wall = true
+// 			}
+// 			else if i == 0 && (j >= 0 && j <= 9)
+// 			{
+// 				cell.bg_texture = textures[.ML]
+// 				cell.wall = true
+// 			}
+// 			else if i == 9 && (j >= 0 && j <= 9)
+// 			{
+// 				cell.bg_texture = textures[.MR]
+// 				cell.wall = true
+// 			}
+// 			else if i < 9 && i > 0 && j < 9 && j > 0
+// 			{
+// 				cell.bg_texture = textures[.MM]
+// 			} 
+// 			else{ cell.wall = false }
+// 		}
+// 	}
+//
+// 	Game.scene.board[0][0].bg_texture = textures[.TL]
+// 	Game.scene.board[0][9].bg_texture = textures[.BL]
+// 	Game.scene.board[9][0].bg_texture = textures[.TR]
+// 	Game.scene.board[9][9].bg_texture = textures[.BR]
+// }
 
 get_pixel_from_image:: proc(name:string, x:i32, y:i32)-> (color: Color){
 	width, height, n_components: i32
