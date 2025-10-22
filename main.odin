@@ -189,7 +189,6 @@ main :: proc()
 			s_move(&Game.scene)
 			s_static_acctions(&Game.scene)
 			Game.input_made = false
-			entities_print(0, 6, scene = &Game.scene)
 		}
 			
 		clear_color(bg_color)

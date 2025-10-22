@@ -286,58 +286,64 @@ s_collide :: proc(scene: ^Scene)
 		if entity.direction == {0, 0} do continue
 		entity_set_moved(u32(i), false, scene)
 		new_position := entity.position + entity.direction
-		if .ENEMY in entity.flags do fmt.println("HERE")
+
+		is_player := i == PLAYER_INDEX
+		is_enemy := .ENEMY in entity.flags
+
 		if !is_out(new_position, i32(scene.columns), i32(scene.rows))
 		{
 			if !is_wall(new_position, scene^)
 			{
 				entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
-
+				
 				for j := i32(e_count)-1; j >= 0; j -=1
 				{
 					if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 					{
-						if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-						if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-						if .PRESSABLE in entities[j].flags
+						if is_player
 						{
-							linked_entity := entities[j].class.(Object).linked_entity
-							entity_set_active(linked_entity, true, scene)
-							entity_move(u32(i), entity.position, new_position, scene)
-							entity_set_moved(u32(i), true, scene)
-						}
 						
-						if .PUSHABLE in entities[j].flags
-						{
-							pushed_new_position := new_position + entity.direction
-							ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
-							if !is_wall(new_position+entity.direction, scene^) && ok_to_push
+							if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+							if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+							if .PRESSABLE in entities[j].flags
 							{
-								entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+								linked_entity := entities[j].class.(Object).linked_entity
+								entity_set_active(linked_entity, true, scene)
 								entity_move(u32(i), entity.position, new_position, scene)
 								entity_set_moved(u32(i), true, scene)
-							} 
-							else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+							}
+							
+							if .PUSHABLE in entities[j].flags
+							{
+								pushed_new_position := new_position + entity.direction
+								ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
+								if !is_wall(new_position+entity.direction, scene^) && ok_to_push
+								{
+									entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+									entity_move(u32(i), entity.position, new_position, scene)
+									entity_set_moved(u32(i), true, scene)
+								} 
+								else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+							}
 						}
-						fmt.println("JAMON!")
-						if PLAYER_INDEX == entities_ids[j]
+
+						if is_enemy
 						{
-							fmt.println("JAMON!")
-							if .ENEMY in entity.flags do glfw.SetWindowShouldClose(Window.handler, true) 
+							fmt.println("IDS", entities_ids)
+							if entities_ids[j] == PLAYER_INDEX {
+
+								fmt.println("JAJAJEJAE")
+								glfw.SetWindowShouldClose(Window.handler, true) 
+							}
 						}
-
-
-
-
-			
-
-						if .STOMPABLE in entities[j].flags
-						{
-
-						}
-
 					}
 				}
+				
+				if !entity.moved 
+					{
+						entity_move(u32(i), entity.position, new_position, scene)
+						entity_set_moved(u32(i), true, scene)
+					}
 			} 
 			else 
 			{
@@ -392,7 +398,7 @@ s_move :: proc(scene: ^Scene)
 		{
 			entity_move(u32(i), entity.position, entity.position + entity.direction, scene)
 			// if .MOVER not_in entity.flags do entity_set_dir(u32(i), {0, 0})
-		}
+		} else do entity_set_moved(u32(i), false, scene)
 	}
 }
 
