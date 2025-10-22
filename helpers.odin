@@ -1,7 +1,7 @@
 package main
 import "core:c"
 import "core:fmt"
-// import "core:log"
+import "core:log"
 import "core:os"
 import "core:strings"
 import gl "vendor:OpenGL"
@@ -79,15 +79,16 @@ set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VA
 		uv: Vec2
 	}
 
-	points : [MAX_NUM_CELLS_PER_GRID]VecData
+	points : [MAX_GEOMETRY_POINTS_PER_BOARD]VecData
 	n: int
 
 	GRID_WIDTH := columns * CELL_SIZE + offset_x
 	GRID_HEIGHT := rows * CELL_SIZE + offset_y
 
-	for i := offset_x; i < GRID_WIDTH; i += CELL_SIZE 
+
+	for j := offset_y; j < GRID_HEIGHT; j += CELL_SIZE 
 	{
-		for j := offset_y; j < GRID_HEIGHT; j += CELL_SIZE 
+		for i := offset_x; i < GRID_WIDTH; i += CELL_SIZE 
 		{
 			points[n] = VecData{vertex = {f32(i), f32(j), 0}, uv = {0, 0}}
 			points[n+1] = VecData{vertex = {f32(i+CELL_SIZE), f32(j), 0}, uv =  {1, 0}}
@@ -140,8 +141,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     program := gl.CreateProgram()
 
     vs := gl.CreateShader(gl.VERTEX_SHADER)
-    vs_src, _ := os.read_entire_file_or_err(vertex_path)
-    cvs: cstring = strings.clone_to_cstring(transmute(string)vs_src)
+    vs_src, _ := os.read_entire_file_or_err(vertex_path, context.temp_allocator)
+    cvs: cstring = strings.clone_to_cstring(transmute(string)vs_src, context.temp_allocator)
     gl.ShaderSource(vs, 1, &cvs, nil)
     gl.CompileShader(vs)
 
@@ -151,13 +152,13 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 	{
         buf: [512]u8
         gl.GetShaderInfoLog(vs, 512, nil, &buf[0])
-        fmt.printfln("Vertex shader compile error:\n%v", transmute(string)buf[:])
+        log.infof("Vertex shader compile error:\n%v", transmute(string)buf[:])
         os.exit(1)
     }
 
     fs := gl.CreateShader(gl.FRAGMENT_SHADER)
-    fs_src, _ := os.read_entire_file_or_err(fragment_path)
-    cfs: cstring = strings.clone_to_cstring(transmute(string)fs_src)
+    fs_src, _ := os.read_entire_file_or_err(fragment_path, context.temp_allocator)
+    cfs: cstring = strings.clone_to_cstring(transmute(string)fs_src, context.temp_allocator)
     gl.ShaderSource(fs, 1, &cfs, nil)
     gl.CompileShader(fs)
     gl.GetShaderiv(fs, gl.COMPILE_STATUS, &success)
@@ -165,7 +166,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 	{
         buf: [512]u8
         gl.GetShaderInfoLog(fs, 512, nil, &buf[0])
-        fmt.printfln("Fragment shader compile error:\n%v", transmute(string)buf[:])
+        log.infof("Fragment shader compile error:\n%v", transmute(string)buf[:])
         os.exit(1)
     }
 
@@ -173,15 +174,15 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     if geometry_path != "" 
 	{
         gs = gl.CreateShader(gl.GEOMETRY_SHADER)
-        gs_src, _ := os.read_entire_file_or_err(geometry_path)
-        cgs: cstring = strings.clone_to_cstring(transmute(string)gs_src)
+        gs_src, _ := os.read_entire_file_or_err(geometry_path, context.temp_allocator)
+        cgs: cstring = strings.clone_to_cstring(transmute(string)gs_src, context.temp_allocator)
         gl.ShaderSource(gs, 1, &cgs, nil)
         gl.CompileShader(gs)
         gl.GetShaderiv(gs, gl.COMPILE_STATUS, &success)
         if success == 0 {
             buf: [512]u8
             gl.GetShaderInfoLog(gs, 512, nil, &buf[0])
-            fmt.printfln("Geometry shader compile error:\n%v", transmute(string)buf[:])
+            log.infof("Geometry shader compile error:\n%v", transmute(string)buf[:])
             os.exit(1)
         }
         gl.AttachShader(program, gs)
@@ -196,7 +197,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 {
         buf: [512]u8
         gl.GetProgramInfoLog(program, 512, nil, &buf[0])
-        fmt.printfln("Shader program link error:\n%v", transmute(string)buf[:])
+        log.infof("Shader program link error:\n%v", transmute(string)buf[:])
         os.exit(1)
     }
 
@@ -212,7 +213,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 }
 
 
-load_texture :: proc(name: string, key: E_TEXTURE)
+load_texture :: proc(name: string, key: E_TEXTURE, textures: ^map[E_TEXTURE]u32)
 {
 	id: u32
 	gl.GenTextures(1, &id)
@@ -234,12 +235,11 @@ load_texture :: proc(name: string, key: E_TEXTURE)
 		case 4:
 			format = gl.RGBA
 		case:
-			fmt.printfln("Not defined number of components: %v, for image: %v", n_components, name)
+			log.infof("Not defined number of components: %v, for image: %v", n_components, name)
 			os.exit(1)
 		}
 
 		gl.BindTexture(gl.TEXTURE_2D, id)
-
 		gl.TexImage2D(gl.TEXTURE_2D, 0, i32(format), width, height, 0, format, gl.UNSIGNED_BYTE, data)
 		gl.GenerateMipmap(gl.TEXTURE_2D)
 
@@ -248,16 +248,17 @@ load_texture :: proc(name: string, key: E_TEXTURE)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-		stbi.image_free(data)
 	}
 	else
 	{
-		fmt.printfln("Error loading texture '%v'.", name)
-		fmt.printfln("From path: %s", c_path)
+		log.infof("Error loading texture '%v'.", name)
+		log.infof("From path: %s", c_path)
 		os.exit(1)
 	}
 
 	textures[key] = id
+
+	stbi.image_free(data)
 	return
 }
 
@@ -285,7 +286,8 @@ s_collide :: proc(scene: ^Scene)
 		if entity.direction == {0, 0} do continue
 		entity_set_moved(u32(i), false, scene)
 		new_position := entity.position + entity.direction
-		if !is_out(new_position, len(scene.board), len(scene.board[0]))
+		if .ENEMY in entity.flags do fmt.println("HERE")
+		if !is_out(new_position, i32(scene.columns), i32(scene.rows))
 		{
 			if !is_wall(new_position, scene^)
 			{
@@ -317,6 +319,13 @@ s_collide :: proc(scene: ^Scene)
 							} 
 							else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
 						}
+						fmt.println("JAMON!")
+						if PLAYER_INDEX == entities_ids[j]
+						{
+							fmt.println("JAMON!")
+							if .ENEMY in entity.flags do glfw.SetWindowShouldClose(Window.handler, true) 
+						}
+
 
 
 
@@ -338,6 +347,7 @@ s_collide :: proc(scene: ^Scene)
 			continue
 		}
 	}
+	fmt.println()
 }
 
 entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
@@ -398,46 +408,49 @@ is_out :: proc(pos: Vec2, rows, cols: i32)->bool
 	return false
 }
 
-// board_set :: proc()
-// {
-// 	for i in 0..<ROWS
-// 	{
-// 		for j in 0..<COLUMNS
-// 		{
-// 			cell := &Game.scene.board[i][j]
-// 			if j == 0 && (i >= 0 && i <= 9)
-// 			{
-// 				cell.bg_texture = textures[.TM]
-// 				cell.wall = true
-// 			}
-// 			else if j == 9 && (i >= 0 && i <= 9)
-// 			{
-// 				cell.bg_texture = textures[.BM]
-// 				cell.wall = true
-// 			}
-// 			else if i == 0 && (j >= 0 && j <= 9)
-// 			{
-// 				cell.bg_texture = textures[.ML]
-// 				cell.wall = true
-// 			}
-// 			else if i == 9 && (j >= 0 && j <= 9)
-// 			{
-// 				cell.bg_texture = textures[.MR]
-// 				cell.wall = true
-// 			}
-// 			else if i < 9 && i > 0 && j < 9 && j > 0
-// 			{
-// 				cell.bg_texture = textures[.MM]
-// 			} 
-// 			else{ cell.wall = false }
-// 		}
-// 	}
-//
-// 	Game.scene.board[0][0].bg_texture = textures[.TL]
-// 	Game.scene.board[0][9].bg_texture = textures[.BL]
-// 	Game.scene.board[9][0].bg_texture = textures[.TR]
-// 	Game.scene.board[9][9].bg_texture = textures[.BR]
-// }
+board_set :: proc(scene: ^Scene)
+{
+	fmt.println("AKI", scene.rows, scene.columns)
+	scene.rows = 10
+	scene.columns = 10
+	for i in 0..<scene.rows
+	{
+		for j in 0..<scene.columns
+		{
+			cell := &Game.scene.board[i][j]
+			if j == 0 && (i > 0 && i < 9)
+			{
+				cell.bg_texture = scene.textures[.ML]
+				cell.wall = true
+			}
+			else if j == 9 && (i > 0 && i < 9)
+			{
+				cell.bg_texture = scene.textures[.MR]
+				cell.wall = true
+			}
+			else if i == 0 && (j > 0 && j < 9)
+			{
+				cell.bg_texture = scene.textures[.TM]
+				cell.wall = true
+			}
+			else if i == 9 && (j > 0 && j < 9)
+			{
+				cell.bg_texture = scene.textures[.BM]
+				cell.wall = true
+			}
+			else if i < 9 && i > 0 && j < 9 && j > 0
+			{
+				cell.bg_texture = scene.textures[.MM]
+			} 
+			else{ cell.wall = false }
+		}
+	}
+
+	Game.scene.board[0][0].bg_texture = scene.textures[.TL]
+	Game.scene.board[0][9].bg_texture = scene.textures[.TR]
+	Game.scene.board[9][0].bg_texture = scene.textures[.BL]
+	Game.scene.board[9][9].bg_texture = scene.textures[.BR]
+}
 
 get_pixel_from_image:: proc(name:string, x:i32, y:i32)-> (color: Color){
 	width, height, n_components: i32
@@ -451,14 +464,14 @@ get_pixel_from_image:: proc(name:string, x:i32, y:i32)-> (color: Color){
 		switch n_components
 		{
 		case 1:
-			fmt.printfln("Not enough info:  for image: %v, number of components: %v", name,  n_components)
+			log.infof("Not enough info:  for image: %v, number of components: %v", name,  n_components)
 			os.exit(1)
 		case 3:
 			format = gl.RGB
 		case 4:
 			format = gl.RGBA
 		case:
-			fmt.printfln("Not defined number of components: %v, for image: %v", n_components, name)
+			log.infof("Not defined number of components: %v, for image: %v", n_components, name)
 			os.exit(1)
 		}
 
@@ -473,8 +486,8 @@ get_pixel_from_image:: proc(name:string, x:i32, y:i32)-> (color: Color){
 	}
 	else
 	{
-		fmt.printfln("Error loading texture '%v'.", name)
-		fmt.printfln("From path: %s", c_path)
+		log.infof("Error loading texture '%v'.", name)
+		log.infof("From path: %s", c_path)
 		os.exit(1)
 	}
 

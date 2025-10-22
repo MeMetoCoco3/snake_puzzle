@@ -3,16 +3,14 @@ package main
 import "core:log"
 import "core:fmt"
 // import "core:os"
+import "core:mem"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
 
-MAX_ROWS 		 :: 10
-MAX_COLUMNS 	 :: 10
 CELL_SIZE 		 :: 64
 MAX_NUM_ENTITIES :: 50
 MAX_NUM_INDEXES  :: 100
-MAX_NUM_CELLS_PER_GRID :: 6 * 20 * 20
 
 E_TEXTURE :: enum
 {
@@ -35,7 +33,6 @@ E_ENTITY :: enum
 }
 
 
-textures : map[E_TEXTURE]u32
 
 Actions :: enum
 {
@@ -100,6 +97,10 @@ Game : struct
 	keys_down: [glfw.KEY_LAST]bool,
 }
 
+MAX_ROWS :: 10
+MAX_COLUMNS: : 10
+MAX_GEOMETRY_POINTS_PER_BOARD :: 6 * MAX_ROWS * MAX_COLUMNS
+
 Scene :: struct
 {
 	name: string,
@@ -107,7 +108,8 @@ Scene :: struct
 	entity_count: i32,
 	entities: [50]Entity,
 	rows: int,
-	columns:int
+	columns:int,
+	textures: map[E_TEXTURE]u32
 }
 
 
@@ -115,57 +117,64 @@ Scene :: struct
 main :: proc() 
 {
 	context.logger = log.create_console_logger()
+
+	when ODIN_DEBUG
+	{
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		defer 
+		{
+			if len(track.allocation_map) > 0 
+			{
+				for _, entry in track.allocation_map do fmt.eprintf("%v leaked %v bytes\n", entry.location, entry.size)
+			}
+			mem.tracking_allocator_destroy(&track)
+		}
+	}
+
+
 	init_glfw()
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-
-	load_texture("assets/2D/bl.png", .BL)
-	load_texture("assets/2D/bm.png", .BM)
-	load_texture("assets/2D/br.png", .BR)
-	load_texture("assets/2D/ml.png", .ML)
-	load_texture("assets/2D/mm.png", .MM)
-	load_texture("assets/2D/mr.png", .MR)
-	load_texture("assets/2D/tl.png", .TL)
-	load_texture("assets/2D/tm.png", .TM)
-	load_texture("assets/2D/tr.png", .TR)
-	load_texture("assets/2D/dirty_pig.png", .DIRTY_PIG)
-	load_texture("assets/2D/clean_pig.png", .CLEAN_PIG)
-	load_texture("assets/2D/box.png", .BOX)
-	load_texture("assets/2D/button.png", .BUTTON)
-	load_texture("assets/2D/flag.png", .GOAL)
-	load_texture("assets/2D/crocodile.png", .CROCO)
+	
+	textures := make(map[E_TEXTURE]u32)
+	load_texture("assets/2D/bl.png", .BL, &textures)
+	load_texture("assets/2D/bm.png", .BM, &textures)
+	load_texture("assets/2D/br.png", .BR, &textures)
+	load_texture("assets/2D/ml.png", .ML, &textures)
+	load_texture("assets/2D/mm.png", .MM, &textures)
+	load_texture("assets/2D/mr.png", .MR, &textures)
+	load_texture("assets/2D/tl.png", .TL, &textures)
+	load_texture("assets/2D/tm.png", .TM, &textures)
+	load_texture("assets/2D/tr.png", .TR, &textures)
+	load_texture("assets/2D/dirty_pig.png", .DIRTY_PIG, &textures)
+	load_texture("assets/2D/clean_pig.png", .CLEAN_PIG, &textures)
+	load_texture("assets/2D/box.png", .BOX, &textures)
+	load_texture("assets/2D/button.png", .BUTTON, &textures)
+	load_texture("assets/2D/flag.png", .GOAL, &textures)
+	load_texture("assets/2D/crocodile.png", .CROCO, &textures)
 
 	bg_color := get_pixel_from_image("assets/2D/tl.png", 0, 0)
 
 	grid_program := load_shaders("grid_vs.glsl", "grid_fs.glsl")
 
+	Game.scene.textures = textures
 	load_scene("scenes/01.scene", &Game.scene)
-
-
-	entities_print(to = 5, p_total = true, scene = &Game.scene)
-	board_print(0, Game.scene.rows-1, 0, Game.scene.columns-1, &Game.scene)
-
-
-	out()
-
-	offset_x, offset_y := get_offset(len(Game.scene.board), len(Game.scene.board[0]))
-	grid_vao := set_grid(len(Game.scene.board), len(Game.scene.board[0]), offset_x, offset_y)
 	
-
-	entity_new_set(.PLAYER, {4, 4}, &Game.scene)
-	entity_new_set(.BOX, {4, 6}, &Game.scene)
-	croco_id := entity_new_set(.CROCO, {4,3}, &Game.scene)
-	entity_set_dir(croco_id, {1, 0}, &Game.scene)
-	button_id := entity_new_set(.BUTTON, {7, 3}, &Game.scene)
-	goal_id := entity_new_set(.GOAL, {8,8}, &Game.scene)
-	entity_set_active(goal_id, false, &Game.scene)
-	entity_set_link(button_id, goal_id, &Game.scene)
-
+	offset_x, offset_y := get_offset(i32(Game.scene.columns), i32(Game.scene.rows))
+	grid_vao := set_grid(len(Game.scene.board), len(Game.scene.board[0]), offset_x, offset_y)
 
 
 	gl.UseProgram(grid_program)
 	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
 	
+	free_all(context.temp_allocator)
+
+
+
+	fmt.println(Game.scene.textures)
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -180,6 +189,7 @@ main :: proc()
 			s_move(&Game.scene)
 			s_static_acctions(&Game.scene)
 			Game.input_made = false
+			entities_print(0, 6, scene = &Game.scene)
 		}
 			
 		clear_color(bg_color)
@@ -191,6 +201,8 @@ main :: proc()
 		glfw.PollEvents() 
 
 	}
+
+	delete(Game.scene.textures)
 	return
 }
 
@@ -202,6 +214,7 @@ PLAYER_INDEX :: 1
 
 entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 {
+	textures := scene.textures
 	entity_prefab := #sparse[E_ENTITY]Entity \
 	{
 		.PLAYER = Entity{class = Player{}, flags = {}, position = {-1, -1}, texture = textures[.DIRTY_PIG], active = true, uv_flip = {1, 1}},
@@ -233,6 +246,7 @@ entity_set:: proc(id: u32, entity: Entity, position: Vec2, scene: ^Scene)
 entity_new_set :: proc(class: E_ENTITY, position: Vec2, scene: ^Scene)-> u32
 {
 	entity, id := entity_new(class, scene)
+	entity.position = position
 	entity_set(id, entity, position, scene)
 	return id
 }
@@ -247,7 +261,6 @@ entity_set_link :: proc(id_src: u32, id_dst: u32, scene: ^Scene)
 	
 	switch &obj in scene.entities[id_src].class {
 		case Object:
-			fmt.println("HERE WE ARE: ", id_dst)
 			obj.linked_entity = id_dst
 		case Player:
 			log.infof("Cannot link id: %v into id: %v", id_dst, id_src)
@@ -340,7 +353,7 @@ entities_print :: proc(from:i32 = 0, to:i32 = MAX_NUM_ENTITIES, p_total:bool = f
 	}
 }
 
-board_print :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
+board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
 	ROW_TO := row_to
 	COL_TO := column_to
 	if ROW_TO == -1 do ROW_TO = len(scene.board)
@@ -351,8 +364,22 @@ board_print :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1
 		for j in column_start..= COL_TO do fmt.printf("%v ", scene.board[i][j].entities_id[0])
 		fmt.println()
 	}
+}
+
+board_print_bg :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
+	ROW_TO := row_to
+	COL_TO := column_to
+	if ROW_TO == -1 do ROW_TO = len(scene.board)
+	if COL_TO == -1 do COL_TO = len(scene.board[0])
+	
+	for i in row_start..< ROW_TO
+	{
+		for j in column_start..< COL_TO do fmt.printf("%v ", scene.board[i][j].bg_texture)
+		fmt.println()
+	}
 	
 }
+
 
 
 /////////////
@@ -366,13 +393,14 @@ s_draw :: proc(shader: u32, vao: VAO, scene: ^Scene)
 	ortho := linalg.matrix_ortho3d_f32(0, f32(Window.w), f32(Window.h), 0, 0, 1)
 	set_mat4(shader, "ortho", &ortho)
 
-	n:i32=0
+	n:i32 = 0
 
 	set_vec2(shader, "u_flip", {1, 1})
-	for row, i in scene.board
+	for i in 0..<scene.rows
 	{
-		for cell, j in row
+		for j in 0..<scene.columns
 		{
+			cell := scene.board[i][j]
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
 			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
@@ -402,7 +430,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 	{
 		if !Game.keys_down[glfw.KEY_UP]
 		{
-			entity_set_dir(PLAYER_INDEX, {0, -1}, scene)
+			entity_set_dir(PLAYER_INDEX, {-1, 0}, scene)
 			Game.keys_down[glfw.KEY_UP] = true
 			Game.input_made = true
 		}
@@ -413,7 +441,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 	{
 		if !Game.keys_down[glfw.KEY_DOWN]
 		{
-			entity_set_dir(PLAYER_INDEX, {0, 1}, scene)
+			entity_set_dir(PLAYER_INDEX, {1, 0}, scene)
 			Game.keys_down[glfw.KEY_DOWN] = true
 			Game.input_made = true
 		}
@@ -424,7 +452,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 	{
 		if !Game.keys_down[glfw.KEY_LEFT]
 		{
-			entity_set_dir(PLAYER_INDEX, {-1, 0}, scene)
+			entity_set_dir(PLAYER_INDEX, {0, -1}, scene)
 			Game.keys_down[glfw.KEY_LEFT] = true
 			Game.input_made = true
 		}
@@ -435,7 +463,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 	{
 		if !Game.keys_down[glfw.KEY_RIGHT]
 		{
-			entity_set_dir(PLAYER_INDEX, {1, 0}, scene)
+			entity_set_dir(PLAYER_INDEX, {0, 1}, scene)
 			Game.keys_down[glfw.KEY_RIGHT] = true
 			Game.input_made = true
 		}
