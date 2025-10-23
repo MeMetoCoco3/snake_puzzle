@@ -330,12 +330,32 @@ s_collide :: proc(scene: ^Scene)
 							if entities_ids[j] == PLAYER_INDEX {
 								glfw.SetWindowShouldClose(Window.handler, true) 
 							}
+
+							if .PUSHABLE in entities[j].flags
+							{
+								pushed_new_position := new_position + entity.direction
+								ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
+								if !is_wall(new_position+entity.direction, scene^) && ok_to_push
+								{
+									entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+									entity_move(u32(i), entity.position, new_position, scene)
+									entity_set_moved(u32(i), true, scene)
+								} 
+								else
+								{
+								fmt.println("WE TURN")
+								fmt.println("DIR BEFORE", entity.direction)
+								entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+								fmt.println("DIR AFTER", Vec2{-entity.direction.x, -entity.direction.y})
+								}
+							}
 						}
 					}
 				}
 				
 				if !entity.moved 
 					{
+						new_position = entity.position + entity_get_dir(u32(i), scene)
 						entity_move(u32(i), entity.position, new_position, scene)
 						entity_set_moved(u32(i), true, scene)
 					}

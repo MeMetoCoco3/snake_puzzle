@@ -99,8 +99,8 @@ Game : struct
 	keys_down: [glfw.KEY_LAST]bool,
 }
 
-MAX_ROWS :: 10
-MAX_COLUMNS: : 10
+MAX_ROWS :: 20
+MAX_COLUMNS :: 20
 MAX_GEOMETRY_POINTS_PER_BOARD :: 6 * MAX_ROWS * MAX_COLUMNS
 
 Scene :: struct
@@ -170,7 +170,7 @@ main :: proc()
 	load_scene("scenes/01.scene", &Game.scene)
 	
 	offset_x, offset_y := get_offset(i32(Game.scene.columns), i32(Game.scene.rows))
-	grid_vao := set_grid(len(Game.scene.board), len(Game.scene.board[0]), offset_x, offset_y)
+	grid_vao := set_grid(i32(Game.scene.rows), i32(Game.scene.columns), offset_x, offset_y)
 
 
 	gl.UseProgram(grid_program)
@@ -179,7 +179,6 @@ main :: proc()
 	free_all(context.temp_allocator)
 
 
-	board_print_entities(scene = &Game.scene)
 
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
@@ -195,8 +194,7 @@ main :: proc()
 			s_move(&Game.scene)
 			s_static_actions(&Game.scene)
 			Game.input_made = false
-			board_print_entities(scene = &Game.scene)
-			fmt.println()
+			entities_print(1, 2, scene = &Game.scene)
 		}
 			
 		clear_color(bg_color)
@@ -283,9 +281,9 @@ entity_get_pos     :: proc(id: u32, scene: ^Scene)-> Vec2		 { return scene.entit
 entity_get_texture :: proc(id: u32, scene: ^Scene)-> u32		 { return scene.entities[id].texture   }
 entity_get_dir     :: proc(id: u32, scene: ^Scene)-> Vec2		 { return scene.entities[id].direction }
 
-entity_draw :: proc(entity: Entity, program: u32)
+entity_draw :: proc(entity: Entity, program: u32, scene: ^Scene)
 {
-	vbo_pos := triangle_cell_get_by_pos(entity.position)
+	vbo_pos := triangle_cell_get_by_pos(entity.position, f32(scene.columns))
 	
 	set_vec2(program, "u_flip", entity.uv_flip)
 
@@ -376,8 +374,8 @@ board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, colum
 board_print_bg :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
 	ROW_TO := row_to
 	COL_TO := column_to
-	if ROW_TO == -1 do ROW_TO = len(scene.board)
-	if COL_TO == -1 do COL_TO = len(scene.board[0])
+	if ROW_TO == -1 do ROW_TO = scene.rows
+	if COL_TO == -1 do COL_TO = scene.columns
 	
 	for j in row_start..< ROW_TO
 	{
@@ -424,10 +422,10 @@ s_draw :: proc(shader: u32, vao: VAO, scene: ^Scene)
 	{
 		if i == 0 || !entity_get_active(u32(i), scene) { continue }
 
-		entity_draw(entity_get(u32(i), scene), shader)
+		entity_draw(entity_get(u32(i), scene), shader, scene)
 	}
 
-	entity_draw(entity_get(PLAYER_INDEX, scene), shader)
+	entity_draw(entity_get(PLAYER_INDEX, scene), shader, scene)
 	gl.BindVertexArray(0)
 }
 
@@ -484,9 +482,9 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 }
 
 
-triangle_cell_get_by_pos :: proc(pos: Vec2)-> f32
+triangle_cell_get_by_pos :: proc(pos: Vec2, columns: f32)-> f32
 {
-	return (pos.y + pos.x * len(Game.scene.board)) * 6
+	return pos.y * 6 + (pos.x * columns * 6)
 }
 
 
