@@ -173,6 +173,12 @@ parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
 		case '┤':
 			scene.board[row][column].bg_texture = scene.textures[.MR]
 			scene.board[row][column].wall = true 
+		case '$':
+			scene.board[row][column].bg_texture = scene.textures[.IBL]
+			scene.board[row][column].wall = true 
+		case '(':
+			scene.board[row][column].bg_texture = scene.textures[.IBR]
+			scene.board[row][column].wall = true 
 		case '-':
 			scene.board[row][column].no_bg = true
 		case 'A'..='Z':

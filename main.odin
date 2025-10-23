@@ -17,6 +17,7 @@ E_TEXTURE :: enum
 	TL, TM, TR,
 	ML, MM, MR,
 	BL, BM, BR,
+	IBL, IBR, ITL, ITR,
 	DIRTY_PIG,
 	CLEAN_PIG,
 	BOX, BUTTON,
@@ -155,6 +156,10 @@ main :: proc()
 	load_texture("assets/2D/button.png", .BUTTON, &textures)
 	load_texture("assets/2D/flag.png", .GOAL, &textures)
 	load_texture("assets/2D/crocodile.png", .CROCO, &textures)
+	load_texture("assets/2D/IBL.png", .IBL, &textures)
+	load_texture("assets/2D/IBR.png", .IBR, &textures)
+	load_texture("assets/2D/ITL.png", .ITL, &textures)
+	load_texture("assets/2D/ITR.png", .ITR, &textures)
 
 	bg_color := get_pixel_from_image("assets/2D/tl.png", 0, 0)
 
@@ -400,6 +405,11 @@ s_draw :: proc(shader: u32, vao: VAO, scene: ^Scene)
 		for j in 0..<scene.columns
 		{
 			cell := scene.board[i][j]
+			if cell.bg_texture == 0 
+			{
+				n+=1
+				continue
+			}
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
 			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
