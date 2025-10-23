@@ -3,7 +3,7 @@
 
 
 1{PLAYER}
-2{CROCO,dir={1,1}}
+2{CROCO,dir={0,1}}
 3{BUTTON,link=4}
 4{GOAL,active=f}
 5{BOX}

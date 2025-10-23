@@ -290,10 +290,9 @@ s_collide :: proc(scene: ^Scene)
 		is_player := i == PLAYER_INDEX
 		is_enemy := .ENEMY in entity.flags
 
-		if !is_out(new_position, i32(scene.columns), i32(scene.rows))
+
+		if !is_wall(new_position, scene^)
 		{
-			if !is_wall(new_position, scene^)
-			{
 				entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
 				
 				for j := i32(e_count)-1; j >= 0; j -=1
@@ -344,16 +343,15 @@ s_collide :: proc(scene: ^Scene)
 						entity_move(u32(i), entity.position, new_position, scene)
 						entity_set_moved(u32(i), true, scene)
 					}
-			} 
-			else 
-			{
-				if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y }, scene)
-				if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0}, scene)
-			}
-			continue
+
 		}
+		else 
+		{
+			if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y }, scene)
+			if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0}, scene)
+		}
+		continue
 	}
-	fmt.println()
 }
 
 entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
@@ -377,15 +375,8 @@ s_static_acctions :: proc(scene: ^Scene)
 			continue
 		}
 	}
-
 }
 
-
-
-// add_dir_to_pos :: proc(pos: Vec2, dir: Vec2)-> Vec2
-// {
-// 	return Vec2{pos.x + dir.y, pos.y + dir.x}
-// }
 
 // WARN: s_move moves only entities which move does not affect others.
 // Moves that affect other entities are done on collision system because the orther in which is done matters
@@ -402,7 +393,7 @@ s_move :: proc(scene: ^Scene)
 	}
 }
 
-is_wall :: proc(pos: Vec2, scene: Scene)->bool { return scene.board[int(pos.y)][int(pos.x)].wall }
+is_wall :: proc(pos: Vec2, scene: Scene)->bool { return scene.board[int(pos.x)][int(pos.y)].wall }
 
  
 MoveRest :: proc(){}
@@ -416,7 +407,6 @@ is_out :: proc(pos: Vec2, rows, cols: i32)->bool
 
 board_set :: proc(scene: ^Scene)
 {
-	fmt.println("AKI", scene.rows, scene.columns)
 	scene.rows = 10
 	scene.columns = 10
 	for i in 0..<scene.rows

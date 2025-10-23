@@ -93,6 +93,7 @@ Window : struct
 
 Game : struct
 {
+	current_level: i32,
 	scene: Scene,
 	input_made: bool,
 	keys_down: [glfw.KEY_LAST]bool,
