@@ -59,11 +59,25 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 	fields, err := strings.split(line^, "-", context.temp_allocator)
 	if err != nil do os.exit(1)
 	
+	fmt.println(entity_id, fields)
 	for &field in fields
 	{
 		field = strings.trim_space(field)
 		parts := strings.split(field, "=", context.temp_allocator)
 		switch parts[0]{
+		case "pos":
+			nums := strings.split(strings.trim(parts[1], "{}"), ",", context.temp_allocator)
+			if len(nums) > 2 do out(fields)
+			pos: Vec2
+			ok: bool
+			pos.x, ok = strconv.parse_f32(nums[0]); assert(ok)
+			pos.y, ok = strconv.parse_f32(nums[1]); assert(ok)
+			fmt.println(entity_id, pos)
+			count := scene.board[int(pos.x)][int(pos.y)].entity_count
+			scene.board[int(pos.x)][int(pos.y)].entities_id[count] = u32(entity_id)
+			scene.entities[entity_id].position = pos
+			scene.board[int(pos.x)][int(pos.y)].entity_count += 1
+
 		case "dir":
 			nums := strings.split(strings.trim(parts[1], "{}"), ",", context.temp_allocator)
 			if len(nums) > 2 do out()
@@ -181,24 +195,24 @@ parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
 			scene.board[row][column].wall = true 
 		case '-':
 			scene.board[row][column].no_bg = true
-		case 'A'..='Z':
-			entity_id :=  char - 'A' + 10
-			count := scene.board[row][column].entity_count
-			scene.board[row][column].entities_id[count] = u32(entity_id)
-			scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
-			scene.board[row][column].bg_texture = scene.textures[.MM]  
-			scene.board[row][column].entity_count += 1
-		case:
-			entity_id, ok := rune_to_int(char); assert(ok)
-			
-			count := scene.board[row][column].entity_count
-			scene.board[row][column].entities_id[count] = u32(entity_id)
-			
-			scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
-
-			scene.board[row][column].bg_texture = scene.textures[.MM]  
-
-			scene.board[row][column].entity_count += 1
+		// case 'A'..='Z':
+		// 	entity_id :=  char - 'A' + 10
+		// 	count := scene.board[row][column].entity_count
+		// 	scene.board[row][column].entities_id[count] = u32(entity_id)
+		// 	scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
+		// 	scene.board[row][column].bg_texture = scene.textures[.MM]  
+		// 	scene.board[row][column].entity_count += 1
+		// case:
+		// 	entity_id, ok := rune_to_int(char); assert(ok)
+		//
+		// 	count := scene.board[row][column].entity_count
+		// 	scene.board[row][column].entities_id[count] = u32(entity_id)
+		//
+		// 	scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
+		//
+		// 	scene.board[row][column].bg_texture = scene.textures[.MM]  
+		//
+		// 	scene.board[row][column].entity_count += 1
 		}
 
 		column += 1

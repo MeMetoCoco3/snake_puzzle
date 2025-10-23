@@ -301,7 +301,6 @@ s_collide :: proc(scene: ^Scene)
 					{
 						if is_player
 						{
-						
 							if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 							if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 							if .PRESSABLE in entities[j].flags
@@ -328,10 +327,7 @@ s_collide :: proc(scene: ^Scene)
 
 						if is_enemy
 						{
-							fmt.println("IDS", entities_ids)
 							if entities_ids[j] == PLAYER_INDEX {
-
-								fmt.println("JAJAJEJAE")
 								glfw.SetWindowShouldClose(Window.handler, true) 
 							}
 						}
@@ -356,9 +352,8 @@ s_collide :: proc(scene: ^Scene)
 
 entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
 
-s_static_acctions :: proc(scene: ^Scene)
+s_static_actions :: proc(scene: ^Scene)
 {
-
 	for i in 0..<scene.entity_count
 	{
 		entity := entity_get(u32(i), scene)

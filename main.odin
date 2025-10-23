@@ -179,8 +179,8 @@ main :: proc()
 	free_all(context.temp_allocator)
 
 
+	board_print_entities(scene = &Game.scene)
 
-	fmt.println(Game.scene.textures)
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -193,8 +193,10 @@ main :: proc()
 		{
 			s_collide(&Game.scene)
 			s_move(&Game.scene)
-			s_static_acctions(&Game.scene)
+			s_static_actions(&Game.scene)
 			Game.input_made = false
+			board_print_entities(scene = &Game.scene)
+			fmt.println()
 		}
 			
 		clear_color(bg_color)
@@ -244,8 +246,8 @@ entity_set:: proc(id: u32, entity: Entity, position: Vec2, scene: ^Scene)
 {
 	scene.entities[id] = entity
 	count_entities := entities_count_on_cell(position, scene^)
-	scene.board[i32(position.y)][int(position.x)].entities_id[count_entities] = id
-	scene.board[i32(position.y)][int(position.x)].entity_count += 1
+	scene.board[i32(position.x)][int(position.y)].entities_id[count_entities] = id
+	scene.board[i32(position.x)][int(position.y)].entity_count += 1
 }
 
 entity_new_set :: proc(class: E_ENTITY, position: Vec2, scene: ^Scene)-> u32
@@ -256,7 +258,7 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2, scene: ^Scene)-> u32
 	return id
 }
 
-entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scene.board[i32(pos.y)][i32(pos.x)].entity_count }
+entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scene.board[i32(pos.x)][i32(pos.y)].entity_count }
 entity_set_dir 		   :: proc(id: u32, dir: Vec2, scene: ^Scene)    { scene.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool, scene: ^Scene)  { scene.entities[id].active = state }
 entity_set_uv 	:: proc(id: u32, u_flip: Vec2, scene: ^Scene)        { scene.entities[id].uv_flip = u_flip }
@@ -303,14 +305,14 @@ entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2, scene: ^Scene)
 	{
 		if (curr_cell.entities_id[i] == id) 
 		{
-			scene.board[i32(curr_pos.y)][int(curr_pos.x)].entities_id[i] = EMPTY_INDEX
-			scene.board[i32(curr_pos.y)][int(curr_pos.x)].entity_count -= 1
+			scene.board[i32(curr_pos.x)][int(curr_pos.y)].entities_id[i] = EMPTY_INDEX
+			scene.board[i32(curr_pos.x)][int(curr_pos.y)].entity_count -= 1
 		}
 	}	
 
 	e_next_count := next_cell.entity_count
-	scene.board[i32(next_pos.y)][int(next_pos.x)].entities_id[e_next_count] = id
-	scene.board[i32(next_pos.y)][int(next_pos.x)].entity_count += 1
+	scene.board[i32(next_pos.x)][int(next_pos.y)].entities_id[e_next_count] = id
+	scene.board[i32(next_pos.x)][int(next_pos.y)].entity_count += 1
 	scene.entities[id].position = next_pos
 
 
@@ -361,12 +363,12 @@ entities_print :: proc(from:i32 = 0, to:i32 = MAX_NUM_ENTITIES, p_total:bool = f
 board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
 	ROW_TO := row_to
 	COL_TO := column_to
-	if ROW_TO == -1 do ROW_TO = len(scene.board)
-	if COL_TO == -1 do COL_TO = len(scene.board[0])
+	if ROW_TO == -1 do ROW_TO = scene.rows 
+	if COL_TO == -1 do COL_TO = scene.columns
 	
-	for i in row_start..= ROW_TO
+	for j in row_start..< ROW_TO
 	{
-		for j in column_start..= COL_TO do fmt.printf("%v ", scene.board[i][j].entities_id[0])
+		for i in column_start..< COL_TO do fmt.printf("%v ", scene.board[i][j].entities_id[0])
 		fmt.println()
 	}
 }
@@ -377,9 +379,9 @@ board_print_bg :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:=
 	if ROW_TO == -1 do ROW_TO = len(scene.board)
 	if COL_TO == -1 do COL_TO = len(scene.board[0])
 	
-	for i in row_start..< ROW_TO
+	for j in row_start..< ROW_TO
 	{
-		for j in column_start..< COL_TO do fmt.printf("%v ", scene.board[i][j].bg_texture)
+		for i in column_start..< COL_TO do fmt.printf("%v ", scene.board[i][j].bg_texture)
 		fmt.println()
 	}
 	
@@ -502,7 +504,7 @@ cell_empty_or_grounded :: proc(pos: Vec2, scene: ^Scene)-> (e_or_g: bool = true)
 	return 
 }
 
-cell_get_by_pos :: proc(pos: Vec2, scene: ^Scene)-> Cell { return scene.board[i32(pos.y)][i32(pos.x)] }
+cell_get_by_pos :: proc(pos: Vec2, scene: ^Scene)-> Cell { return scene.board[i32(pos.x)][i32(pos.y)] }
 
 clear_color :: proc(color:Color){gl.ClearColor(f32(color.x)/255, f32(color.y)/255, f32(color.z)/255, f32(color.w)/255)}
 
