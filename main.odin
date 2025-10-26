@@ -3,7 +3,7 @@ package main
 import "core:log"
 import "core:fmt"
 // import "core:os"
-import "core:mem"
+// import "core:mem"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
@@ -118,6 +118,7 @@ Scene :: struct
 
 main :: proc() 
 {
+	log.info("Start main")
 	context.logger = log.create_console_logger()
 
 	when ODIN_DEBUG
@@ -194,7 +195,7 @@ main :: proc()
 			s_move(&Game.scene)
 			s_static_actions(&Game.scene)
 			Game.input_made = false
-			entities_print(1, 2, scene = &Game.scene)
+			// entities_print(1, 2, scene = &Game.scene)
 		}
 			
 		clear_color(bg_color)
@@ -207,6 +208,7 @@ main :: proc()
 
 	}
 
+	end_glfw()
 	delete(Game.scene.textures)
 	return
 }

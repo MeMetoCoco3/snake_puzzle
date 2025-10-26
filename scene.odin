@@ -18,7 +18,7 @@ load_scene :: proc(scene_name: string, scene: ^Scene)
 	scene.entity_count = 1
 
 	current_row := 0
-	for &line, i in strings.split_lines(scene_description, context.temp_allocator)
+	for &line in strings.split_lines(scene_description, context.temp_allocator)
 	{
 		if line == "" do continue
 		if strings.starts_with(line, "\"") 
@@ -145,11 +145,10 @@ parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bo
 @(private)
 extract_board_size :: proc(line: string)-> (int, int)
 {	
-	using strconv
 	values, err := strings.split(line, "x", context.temp_allocator)
 	assert(err==nil)
 
-	return atoi(values[0]), atoi(values[1])
+	return strconv.atoi(values[0]), strconv.atoi(values[1])
 }
 
 parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
@@ -195,24 +194,6 @@ parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
 			scene.board[row][column].wall = true 
 		case '-':
 			scene.board[row][column].no_bg = true
-		// case 'A'..='Z':
-		// 	entity_id :=  char - 'A' + 10
-		// 	count := scene.board[row][column].entity_count
-		// 	scene.board[row][column].entities_id[count] = u32(entity_id)
-		// 	scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
-		// 	scene.board[row][column].bg_texture = scene.textures[.MM]  
-		// 	scene.board[row][column].entity_count += 1
-		// case:
-		// 	entity_id, ok := rune_to_int(char); assert(ok)
-		//
-		// 	count := scene.board[row][column].entity_count
-		// 	scene.board[row][column].entities_id[count] = u32(entity_id)
-		//
-		// 	scene.entities[entity_id].position = Vec2{f32(column), f32(row)}
-		//
-		// 	scene.board[row][column].bg_texture = scene.textures[.MM]  
-		//
-		// 	scene.board[row][column].entity_count += 1
 		}
 
 		column += 1

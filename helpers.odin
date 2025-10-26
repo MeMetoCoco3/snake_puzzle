@@ -34,6 +34,7 @@ set_mat4 :: proc(program: u32, loc: cstring, val: ^matrix[4, 4]f32) { gl.Uniform
 
 init_glfw :: proc() 
 {
+	log.info("Starting init_GLFW")
 	glfw.Init()
 
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -42,10 +43,12 @@ init_glfw :: proc()
 	glfw.WindowHint(glfw.DEPTH_BITS, 24)
 
 
+	log.info("Creating Window")
 	Window.handler = glfw.CreateWindow(WIDTH, HEIGHT, "LEARN", nil, nil)
 	assert(Window.handler != nil)
 	Window.w = WIDTH
 	Window.h = HEIGHT
+	log.info("Window Created")
 
 	glfw.MakeContextCurrent(Window.handler)
 	// glfw.SetInputMode(Window.handler, glfw.CURSOR, glfw.CURSOR_DISABLED)
@@ -55,7 +58,10 @@ init_glfw :: proc()
 	// glfw.SetScrollCallback(Window.handler, scroll_callback)
 
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
+	log.info("GL loaded")
+
 	gl.Viewport(0, 0, WIDTH, HEIGHT)
+	log.info("Viewport stablished.")
 }
 
 end_glfw :: proc() 
@@ -309,6 +315,7 @@ s_collide :: proc(scene: ^Scene)
 								entity_set_active(linked_entity, true, scene)
 								entity_move(u32(i), entity.position, new_position, scene)
 								entity_set_moved(u32(i), true, scene)
+								continue
 							}
 							
 							if .PUSHABLE in entities[j].flags
@@ -321,7 +328,13 @@ s_collide :: proc(scene: ^Scene)
 									entity_move(u32(i), entity.position, new_position, scene)
 									entity_set_moved(u32(i), true, scene)
 								} 
-								else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+								else 
+								{
+									fmt.println("WE SHOULD NOT MOVE")
+									entity_set_moved(u32(i), true, scene)
+									entity.moved = true
+								}
+								continue
 							}
 						}
 
@@ -337,16 +350,27 @@ s_collide :: proc(scene: ^Scene)
 								ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
 								if !is_wall(new_position+entity.direction, scene^) && ok_to_push
 								{
+									fmt.println("GOOD PUSH")
 									entity_move(entities_ids[j], new_position, pushed_new_position, scene)
 									entity_move(u32(i), entity.position, new_position, scene)
 									entity_set_moved(u32(i), true, scene)
 								} 
 								else
 								{
-								fmt.println("WE TURN")
-								fmt.println("DIR BEFORE", entity.direction)
-								entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
-								fmt.println("DIR AFTER", Vec2{-entity.direction.x, -entity.direction.y})
+									//TODO: BEFORE THIS, CHECK IF I CAN MOVE
+									// entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+									new_position = {-entity.direction.x, -entity.direction.y} + entity.position
+									if is_wall(new_position, scene^) || !cell_empty_or_grounded(new_position, scene)
+									{
+										entity_set_moved(u32(i), true, scene)
+										entity.moved = true
+									} 
+									else
+									{
+										fmt.println("WE CHANGED!!")
+										entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+										fmt.println("NEWPOSITION + ", new_position)
+									}
 								}
 							}
 						}
@@ -355,7 +379,10 @@ s_collide :: proc(scene: ^Scene)
 				
 				if !entity.moved 
 					{
+						if i == 2 do fmt.println("WE STILL MOVE THE CROC")
 						new_position = entity.position + entity_get_dir(u32(i), scene)
+
+						fmt.println("NEWPOSITION + ", new_position)
 						entity_move(u32(i), entity.position, new_position, scene)
 						entity_set_moved(u32(i), true, scene)
 					}
