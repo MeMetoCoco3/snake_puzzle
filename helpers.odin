@@ -185,7 +185,8 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
         gl.ShaderSource(gs, 1, &cgs, nil)
         gl.CompileShader(gs)
         gl.GetShaderiv(gs, gl.COMPILE_STATUS, &success)
-        if success == 0 {
+        if success == 0 
+		{
             buf: [512]u8
             gl.GetShaderInfoLog(gs, 512, nil, &buf[0])
             log.infof("Geometry shader compile error:\n%v", transmute(string)buf[:])
@@ -200,7 +201,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
 
     gl.GetProgramiv(program, gl.LINK_STATUS, &success)
     if success == 0 
-{
+	{
         buf: [512]u8
         gl.GetProgramInfoLog(program, 512, nil, &buf[0])
         log.infof("Shader program link error:\n%v", transmute(string)buf[:])
@@ -210,10 +211,7 @@ load_shaders :: proc(vertex_path, fragment_path:string,  geometry_path: string =
     // Cleanup
     gl.DeleteShader(vs)
     gl.DeleteShader(fs)
-    if geometry_path != "" 
-	{
-        gl.DeleteShader(gs)
-    }
+    if geometry_path != "" do gl.DeleteShader(gs)
 
     return program
 }
@@ -284,116 +282,91 @@ out :: proc(line:any=0, loc := #caller_location)
 	os.exit(1)
 }
 
-s_collide :: proc(scene: ^Scene)
+is_player :: proc(id: u32)-> bool { return id == PLAYER_INDEX }
+is_enemy :: proc(entity: Entity)-> bool { return .ENEMY in entity.flags}
+
+
+@(private)
+s_collide_player :: proc(i: u32, entity: Entity, new_position: Vec2, scene: ^Scene)
 {
-	for i in 0..<scene.entity_count
+
+	if is_wall(new_position, scene^)
 	{
-		entity := entity_get(u32(i), scene)
-		if entity.direction == {0, 0} do continue
-		entity_set_moved(u32(i), false, scene)
-		new_position := entity.position + entity.direction
+		entity_set_dir(u32(i), {0, 0}, scene)
+		return
+	}
 
-		is_player := i == PLAYER_INDEX
-		is_enemy := .ENEMY in entity.flags
+	entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
 
-
-		if !is_wall(new_position, scene^)
+	for j := i32(e_count)-1; j >= 0; j -=1
+	{
+		if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 		{
-				entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
-				
-				for j := i32(e_count)-1; j >= 0; j -=1
+			if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+			if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+			if .PRESSABLE in entities[j].flags
+			{
+				linked_entity := entities[j].class.(Object).linked_entity
+				entity_set_active(linked_entity, true, scene)
+				entity_move(u32(i), entity.position, new_position, scene)
+				entity_set_moved(u32(i), true, scene)
+				continue
+			}
+			
+			if .PUSHABLE in entities[j].flags
+			{
+				pushed_new_position := new_position + entity.direction
+				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
+				if !is_wall(new_position+entity.direction, scene^) && ok_to_push
 				{
-					if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
-					{
-						if is_player
-						{
-							if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-							if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-							if .PRESSABLE in entities[j].flags
-							{
-								linked_entity := entities[j].class.(Object).linked_entity
-								entity_set_active(linked_entity, true, scene)
-								entity_move(u32(i), entity.position, new_position, scene)
-								entity_set_moved(u32(i), true, scene)
-								continue
-							}
-							
-							if .PUSHABLE in entities[j].flags
-							{
-								pushed_new_position := new_position + entity.direction
-								ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
-								if !is_wall(new_position+entity.direction, scene^) && ok_to_push
-								{
-									entity_move(entities_ids[j], new_position, pushed_new_position, scene)
-									entity_move(u32(i), entity.position, new_position, scene)
-									entity_set_moved(u32(i), true, scene)
-								} 
-								else 
-								{
-									fmt.println("WE SHOULD NOT MOVE")
-									entity_set_moved(u32(i), true, scene)
-									entity.moved = true
-								}
-								continue
-							}
-						}
-
-						if is_enemy
-						{
-							if entities_ids[j] == PLAYER_INDEX {
-								glfw.SetWindowShouldClose(Window.handler, true) 
-							}
-
-							if .PUSHABLE in entities[j].flags
-							{
-								pushed_new_position := new_position + entity.direction
-								ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
-								if !is_wall(new_position+entity.direction, scene^) && ok_to_push
-								{
-									fmt.println("GOOD PUSH")
-									entity_move(entities_ids[j], new_position, pushed_new_position, scene)
-									entity_move(u32(i), entity.position, new_position, scene)
-									entity_set_moved(u32(i), true, scene)
-								} 
-								else
-								{
-									//TODO: BEFORE THIS, CHECK IF I CAN MOVE
-									// entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
-									new_position = {-entity.direction.x, -entity.direction.y} + entity.position
-									if is_wall(new_position, scene^) || !cell_empty_or_grounded(new_position, scene)
-									{
-										entity_set_moved(u32(i), true, scene)
-										entity.moved = true
-									} 
-									else
-									{
-										fmt.println("WE CHANGED!!")
-										entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
-										fmt.println("NEWPOSITION + ", new_position)
-									}
-								}
-							}
-						}
-					}
+					entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+					entity_move(u32(i), entity.position, new_position, scene)
+					entity_set_moved(u32(i), true, scene)
+				} 
+				else 
+				{
+					entity_set_moved(u32(i), true, scene)
 				}
-				
-				if !entity.moved 
-					{
-						if i == 2 do fmt.println("WE STILL MOVE THE CROC")
-						new_position = entity.position + entity_get_dir(u32(i), scene)
-
-						fmt.println("NEWPOSITION + ", new_position)
-						entity_move(u32(i), entity.position, new_position, scene)
-						entity_set_moved(u32(i), true, scene)
-					}
-
+				continue
+			}
 		}
-		else 
+	}
+}
+
+@(private)
+s_collide_enemy :: proc(i: u32, entity: Entity, new_position: Vec2, scene: ^Scene)
+{
+	if is_wall(new_position, scene^)
+	{
+		if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y }, scene)
+		return
+	}
+
+	entities, entities_ids, e_count := entities_get_from_pos(new_position, scene)	
+	for j := i32(e_count)-1; j >= 0; j -=1
+	{
+		if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 		{
-			if .MOVER in entity.flags do entity_set_dir(u32(i), { -entity.direction.x, -entity.direction.y }, scene)
-			if PLAYER_INDEX == i do entity_set_dir(u32(i), {0, 0}, scene)
+			if is_player(entities_ids[j]) do glfw.SetWindowShouldClose(Window.handler, true) 
+
+			if .PUSHABLE in entities[j].flags
+			{
+				pushed_new_position := new_position + entity.direction
+				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
+				if !is_wall(new_position+entity.direction, scene^) && ok_to_push
+				{
+					entity_move(entities_ids[j], new_position, pushed_new_position, scene)
+					entity_move(u32(i), entity.position, new_position, scene)
+					entity_set_moved(u32(i), true, scene)
+				} 
+				else
+				{
+					opposite_position := Vec2{-entity.direction.x, -entity.direction.y} + entity.position
+					if is_wall(opposite_position, scene^) || !cell_empty_or_grounded(opposite_position, scene) do entity_set_moved(u32(i), true, scene)
+					else do entity_set_dir(u32(i), {-entity.direction.x, -entity.direction.y}, scene)
+				}
+			}
 		}
-		continue
 	}
 }
 
@@ -420,8 +393,6 @@ s_static_actions :: proc(scene: ^Scene)
 }
 
 
-// WARN: s_move moves only entities which move does not affect others.
-// Moves that affect other entities are done on collision system because the orther in which is done matters
 s_move :: proc(scene: ^Scene)
 {
 	for i in 0..<scene.entity_count
@@ -430,7 +401,6 @@ s_move :: proc(scene: ^Scene)
 		if entity.direction != {0, 0} && !entity.moved 
 		{
 			entity_move(u32(i), entity.position, entity.position + entity.direction, scene)
-			// if .MOVER not_in entity.flags do entity_set_dir(u32(i), {0, 0})
 		} else do entity_set_moved(u32(i), false, scene)
 	}
 }

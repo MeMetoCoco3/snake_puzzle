@@ -317,7 +317,7 @@ entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2, scene: ^Scene)
 
 
 	dir := curr_pos - next_pos
-	if dir.y == 0 do entity_set_uv(u32(id), {-dir.x, 1}, scene)
+	if dir.x == 0 do entity_set_uv(u32(id), {-dir.y, 1}, scene)
 }
 
 entities_get_from_pos :: proc(pos: Vec2, scene: ^Scene)->(entities: [2]Entity, ids: [2]u32, count: u32)
