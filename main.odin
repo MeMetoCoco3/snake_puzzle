@@ -3,7 +3,7 @@ package main
 import "core:log"
 import "core:fmt"
 // import "core:os"
-// import "core:mem"
+import "core:mem"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
@@ -180,7 +180,6 @@ main :: proc()
 	free_all(context.temp_allocator)
 
 
-
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -192,10 +191,8 @@ main :: proc()
 		if Game.input_made
 		{
 			s_collide(&Game.scene)
-			s_move(&Game.scene)
 			s_static_actions(&Game.scene)
 			Game.input_made = false
-			// entities_print(1, 2, scene = &Game.scene)
 		}
 			
 		clear_color(bg_color)
@@ -242,7 +239,7 @@ entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 entity_add:: proc(entity: Entity, id: u32, scene: ^Scene) { scene.entities[id] = entity }
 
 
-entity_set:: proc(id: u32, entity: Entity, position: Vec2, scene: ^Scene)
+entity_set :: proc(id: u32, entity: Entity, position: Vec2, scene: ^Scene)
 {
 	scene.entities[id] = entity
 	count_entities := entities_count_on_cell(position, scene^)
@@ -258,6 +255,10 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2, scene: ^Scene)-> u32
 	return id
 }
 
+entity_update :: proc(id: u32, entity: Entity, scene: ^Scene) { 
+	fmt.println()
+	scene.entities[id] = entity 
+}
 entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scene.board[i32(pos.x)][i32(pos.y)].entity_count }
 entity_set_dir 		   :: proc(id: u32, dir: Vec2, scene: ^Scene)    { scene.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool, scene: ^Scene)  { scene.entities[id].active = state }
@@ -358,6 +359,7 @@ entities_print :: proc(from:i32 = 0, to:i32 = MAX_NUM_ENTITIES, p_total:bool = f
 	{
 		fmt.printfln("%v: %v", x, Game.scene.entities[x])
 	}
+	fmt.println()
 }
 
 board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){
@@ -368,7 +370,7 @@ board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, colum
 	
 	for j in row_start..< ROW_TO
 	{
-		for i in column_start..< COL_TO do fmt.printf("%v ", scene.board[i][j].entities_id[0])
+		for i in column_start..< COL_TO do fmt.printf("%v ", scene.board[j][i].entities_id[0])
 		fmt.println()
 	}
 }
@@ -494,7 +496,8 @@ cell_is_empty :: proc(cell: Cell)-> bool{ return cell.entity_count == 0 }
 cell_empty_or_grounded :: proc(pos: Vec2, scene: ^Scene)-> (e_or_g: bool = true) 
 {
 	cell := cell_get_by_pos(pos, scene)
-	
+	if cell_is_empty(cell) do return 
+
 	for i in 0..<cell.entity_count
 	{
 		id := cell.entities_id[i]

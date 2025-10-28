@@ -119,7 +119,6 @@ parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bo
 		}
 	}
 
-	fmt.println("$$", entity_string[:pointer])
 	switch entity_string[:pointer]
 	{
 		case "PLAYER":
