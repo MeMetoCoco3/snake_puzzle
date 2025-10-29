@@ -32,7 +32,12 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 	{
 		if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 		{
-			if .WIN in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+			if .WIN in entities[j].flags 
+			{
+				Game.load_next = true
+				Game.current_level += 1
+			}
+
 			if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
 			if .PRESSABLE in entities[j].flags
 			{
@@ -49,7 +54,6 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 			
 			if .PUSHABLE in entities[j].flags
 			{
-				fmt.println("JAMON")
 				pushed_new_position := entity.position + (2*entity.direction)
 				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
 				if !is_wall(new_position+entity.direction, scene^) && ok_to_push
@@ -110,7 +114,6 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
 				if !is_wall(pushed_new_position, scene^) && ok_to_push
 				{
-					fmt.println("OK TO PUSH")
 					entity_move(entities_ids[j], entities[j].position, pushed_new_position, scene)
 					entity_move(u32(i), entity.position, new_position, scene)
 					
@@ -120,7 +123,6 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 				} 
 				else
 				{
-					fmt.println("CHECK OTHER!")
 					opposite_position := Vec2{-entity.direction.x, -entity.direction.y} + entity.position
 					if is_wall(opposite_position, scene^) || !cell_empty_or_grounded(opposite_position, scene) do entity.moved = true
 					else do entity.direction = {-entity.direction.x, -entity.direction.y}

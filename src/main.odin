@@ -7,10 +7,10 @@ import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
 
-CELL_SIZE 		 :: 64
-MAX_NUM_ENTITIES :: 50
-MAX_NUM_INDEXES  :: 100
-
+CELL_SIZE 		 	  :: 64
+MAX_NUM_ENTITIES 	  :: 50
+MAX_NUM_INDEXES  	  :: 100
+MAX_ENTITIES_PER_CELL :: 3
 E_TEXTURE :: enum
 {
 	TL, TM, TR,
@@ -78,7 +78,7 @@ Object :: struct{
 Cell :: struct
 {
 	bg_texture: u32,
-	entities_id: [3]u32,
+	entities_id: [MAX_ENTITIES_PER_CELL]u32,
 	entity_count: u32,
 	wall: bool,
 	no_bg: bool,
@@ -87,7 +87,9 @@ Cell :: struct
 Window : struct
 {
 	handler: glfw.WindowHandle, 
-	w, h: i32
+	w, h: i32,
+	grid_VAO: VAO,
+	shader_program: u32
 }
 
 Game : struct
@@ -96,6 +98,7 @@ Game : struct
 	scene: Scene,
 	input_made: bool,
 	keys_down: [glfw.KEY_LAST]bool,
+	load_next: bool
 }
 
 MAX_ROWS :: 20
@@ -165,19 +168,14 @@ main :: proc()
 
 	bg_color := get_pixel_from_image("assets/2D/tl.png", 0, 0)
 
-	grid_program := load_shaders("shaders/grid_vs.glsl", "shaders/grid_fs.glsl")
+	Window.shader_program = load_shaders("shaders/grid_vs.glsl", "shaders/grid_fs.glsl")
 
 	Game.scene.textures = textures
-	load_scene("scenes/01.scene", &Game.scene)
+	load_scene(1)
 	
-	offset_x, offset_y := get_offset(i32(Game.scene.columns), i32(Game.scene.rows))
-	grid_vao := set_grid(i32(Game.scene.rows), i32(Game.scene.columns), offset_x, offset_y)
-
-
-	gl.UseProgram(grid_program)
-	gl.Uniform1i(gl.GetUniformLocation(grid_program, "texture1"), 0)
 	
-	free_all(context.temp_allocator)
+	board_print_entities(scene = &Game.scene)
+	entities_print(to=5, scene = &Game.scene)
 
 
 	main_loop: 
@@ -193,12 +191,20 @@ main :: proc()
 			s_collide(&Game.scene)
 			s_static_actions(&Game.scene)
 			Game.input_made = false
+			if Game.load_next
+			{
+				entities_zero(&Game.scene)
+				load_scene(Game.current_level)
+				board_print_entities(scene = &Game.scene)
+				entities_print(to=5, scene = &Game.scene)
+				Game.load_next = false
+			}
 		}
 			
 		clear_color(bg_color)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
-		s_draw(grid_program, grid_vao, &Game.scene)
+		s_draw(Window.shader_program, Window.grid_VAO, &Game.scene)
 
 		glfw.SwapBuffers(Window.handler)
 		glfw.PollEvents() 
@@ -256,7 +262,6 @@ entity_new_set :: proc(class: E_ENTITY, position: Vec2, scene: ^Scene)-> u32
 }
 
 entity_update :: proc(id: u32, entity: Entity, scene: ^Scene) { 
-	fmt.println()
 	scene.entities[id] = entity 
 }
 entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scene.board[i32(pos.x)][i32(pos.y)].entity_count }
@@ -345,6 +350,19 @@ entities_get_from_pos :: proc(pos: Vec2, scene: ^Scene)->(entities: [2]Entity, i
 }
 
 entities_zero :: proc(scene: ^Scene){
+
+    for i in 0..<scene.rows {
+        for j in 0..<scene.columns {
+            cell := &scene.board[i][j]
+			cell.wall = false
+			cell.bg_texture = 0
+            cell.entity_count = 0
+            for k in 0..<MAX_ENTITIES_PER_CELL {
+                cell.entities_id[k] = 0
+            }
+        }
+    }
+
 	for i in 0..<len(scene.entities)
 	{
 		scene.entities[i] = {}

@@ -4,11 +4,16 @@ import "core:fmt"
 import os"core:os/os2"
 import "core:strings"
 import "core:strconv"
-import "core:path/filepath"
 
-load_scene :: proc(scene_name: string, scene: ^Scene)
+S_PATH :: "scenes"
+
+load_scene :: proc(level: i32)
 {
-	assert(filepath.long_ext(scene_name)== ".scene")
+	Game.current_level = level
+
+	scene := &Game.scene
+	scene_name := fmt.tprintf("%v/%02d.scene", S_PATH, level)
+	assert(os.exists(scene_name), message = fmt.tprintf("Scene does not exists: %v", scene_name))
 
 	data, err := os.read_entire_file(scene_name, context.temp_allocator)
 	assert(err==nil)
@@ -48,6 +53,10 @@ load_scene :: proc(scene_name: string, scene: ^Scene)
 		}
 		parse_board_line(strings.trim_space(line), &current_row, scene)
 	}
+	free_all(context.temp_allocator)
+
+	offset_x, offset_y := get_offset(i32(Game.scene.columns), i32(Game.scene.rows))
+	Window.grid_VAO = set_grid(i32(Game.scene.rows), i32(Game.scene.columns), offset_x, offset_y)
 }
 
 
@@ -59,9 +68,9 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 	fields, err := strings.split(line^, "-", context.temp_allocator)
 	if err != nil do os.exit(1)
 	
-	fmt.println(entity_id, fields)
 	for &field in fields
 	{
+		fmt.println(entity_id, field)
 		field = strings.trim_space(field)
 		parts := strings.split(field, "=", context.temp_allocator)
 		switch parts[0]{
@@ -72,7 +81,7 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 			ok: bool
 			pos.x, ok = strconv.parse_f32(nums[0]); assert(ok)
 			pos.y, ok = strconv.parse_f32(nums[1]); assert(ok)
-			fmt.println(entity_id, pos)
+
 			count := scene.board[int(pos.x)][int(pos.y)].entity_count
 			scene.board[int(pos.x)][int(pos.y)].entities_id[count] = u32(entity_id)
 			scene.entities[entity_id].position = pos

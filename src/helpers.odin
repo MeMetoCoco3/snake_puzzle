@@ -74,7 +74,7 @@ get_offset :: proc(rows, columns: i32)-> (i32, i32)
 {
 	offset_x := Window.w/2 - (columns/2)*CELL_SIZE
 	offset_y := Window.h/2 - (rows/2)*CELL_SIZE
-	return offset_x, offset_y
+	return offset_y, offset_x
 }
 
 set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VAO
