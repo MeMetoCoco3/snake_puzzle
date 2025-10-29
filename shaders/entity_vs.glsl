@@ -1,0 +1,17 @@
+#version 330 core
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
+
+out vec2 texCoord;
+
+uniform mat4 ortho;
+uniform mat4 model;
+uniform vec2 u_flip;
+
+void main(){
+
+    gl_Position = ortho * model * vec4(aPos, 1.0);
+    // gl_Position = vec4(aPos.xy, 1.0, 1.0);
+    texCoord = aTexCoord * u_flip + (1.0 - u_flip) * 0.5;
+}

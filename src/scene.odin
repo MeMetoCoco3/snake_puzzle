@@ -37,6 +37,9 @@ load_scene :: proc(level: i32)
 			if strings.contains(line, "x") 
 			{
 				scene.rows, scene.columns = extract_board_size(line) 	
+
+				offset_x, offset_y := get_offset(i32(scene.rows), i32(scene.columns))
+				scene.offset = Vec2{f32(offset_x), f32(offset_y)}
 				continue
 			}
 
@@ -55,10 +58,9 @@ load_scene :: proc(level: i32)
 	}
 	free_all(context.temp_allocator)
 
-	offset_x, offset_y := get_offset(i32(Game.scene.columns), i32(Game.scene.rows))
-	Window.grid_VAO = set_grid(i32(Game.scene.rows), i32(Game.scene.columns), offset_x, offset_y)
+	Window.grid_VAO = set_grid_VAO(i32(Game.scene.rows), i32(Game.scene.columns), i32(scene.offset.x), i32(scene.offset.y))
+	Window.entity_VAO = set_entity_VAO(scene)
 }
-
 
 parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 {
@@ -70,7 +72,6 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 	
 	for &field in fields
 	{
-		fmt.println(entity_id, field)
 		field = strings.trim_space(field)
 		parts := strings.split(field, "=", context.temp_allocator)
 		switch parts[0]{
@@ -86,7 +87,8 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 			scene.board[int(pos.x)][int(pos.y)].entities_id[count] = u32(entity_id)
 			scene.entities[entity_id].position = pos
 			scene.board[int(pos.x)][int(pos.y)].entity_count += 1
-
+			
+			scene.entities[entity_id].sprite.position = screen_position_from_grid_position(pos, scene^)
 		case "dir":
 			nums := strings.split(strings.trim(parts[1], "{}"), ",", context.temp_allocator)
 			if len(nums) > 2 do out()
@@ -112,6 +114,7 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bool)
 {
 	entity_string := strings.trim(line^, "{")
+
 	line^ = line[1:]
 	pointer := 0
 	for ; pointer < len(entity_string); pointer += 1
@@ -146,7 +149,9 @@ parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bo
 	return
 }
 
-
+screen_position_from_grid_position :: proc(position: Vec2, scene: Scene)-> Vec2{
+	return Vec2{scene.offset.x + (position.y * CELL_SIZE), scene.offset.y +( position.x * CELL_SIZE)}
+}
 
 
 

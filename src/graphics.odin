@@ -20,7 +20,7 @@ EBO :: u32
 FBO :: u32
 RBO :: u32
 
-WIDTH  :: 1200
+WIDTH  :: 1400
 HEIGHT :: 1000
 
 delta_time: f32
@@ -72,12 +72,74 @@ end_glfw :: proc()
 
 get_offset :: proc(rows, columns: i32)-> (i32, i32)
 {
-	offset_x := Window.w/2 - (columns/2)*CELL_SIZE
-	offset_y := Window.h/2 - (rows/2)*CELL_SIZE
-	return offset_y, offset_x
+	grid_w := columns * CELL_SIZE
+    grid_h := rows * CELL_SIZE
+
+    offset_x := (Window.w - grid_w) / 2
+    offset_y := (Window.h - grid_h) / 2
+
+    return offset_x, offset_y
 }
 
-set_grid :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VAO
+set_entity_VAO:: proc(scene: ^Scene)-> VAO
+{
+	points := [?]f32 \
+	{
+		 0, 1, 0,  0.0, 1.0, 
+		 1, 0, 0,  1.0, 0.0, 
+		 0, 0, 0,  0.0, 0.0, 
+		 1, 1, 0,  1.0, 1.0  
+	}
+
+	indices := [6]u32 \
+	{
+		0, 2, 1, 
+		0, 1, 3,
+	}
+
+	vbo: VBO
+	vao: VAO
+	ebo: EBO
+
+	gl.GenVertexArrays(1, &vao)
+	gl.GenBuffers(1, &vbo)
+	gl.GenBuffers(1, &ebo)
+	gl.BindVertexArray(vao)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, vbo) 
+	gl.BufferData(gl.ARRAY_BUFFER, size_of(points), &points, gl.STATIC_DRAW)
+
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo) 
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices), &indices, gl.STATIC_DRAW)
+
+	gl.VertexAttribPointer \
+	(
+		index = 0,
+		size = 3,
+		type = gl.FLOAT,
+		normalized = gl.FALSE,
+		stride = size_of(f32) * 5,
+		pointer = 0,
+	)
+	gl.EnableVertexAttribArray(0)
+
+	gl.VertexAttribPointer(
+		index = 1,
+		size = 2,
+		type = gl.FLOAT,
+		normalized = gl.FALSE,
+		stride = size_of(f32) * 5,
+		pointer = size_of(f32) * 3,
+	)
+	gl.EnableVertexAttribArray(1)
+	gl.BindVertexArray(0)
+	return vao
+}
+
+
+
+
+set_grid_VAO :: proc(rows: i32, columns: i32, offset_x: i32=0, offset_y: i32=0)-> VAO
 {
 	VecData:: struct
 	{

@@ -1,11 +1,112 @@
 package main
 
+import gl"vendor:OpenGL"
 import "core:fmt"
+import "core:math/linalg"
 import "vendor:glfw"
 
 ///////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
+s_draw :: proc(scene: ^Scene)
+{
+	gl.UseProgram(Window.grid_shader)
+	gl.BindVertexArray(Window.grid_VAO)
 
+	ortho := linalg.matrix_ortho3d_f32(0, f32(Window.w), f32(Window.h), 0, -1, 1)
+	set_mat4(Window.grid_shader, "ortho", &ortho)
+
+	n:i32 = 0
+
+	set_vec2(Window.grid_shader, "u_flip", {1, 1})
+	gl.ActiveTexture(gl.TEXTURE0)
+	for i in 0..<scene.rows
+	{
+		for j in 0..<scene.columns
+		{
+			cell := scene.board[i][j]
+			if cell.bg_texture == 0 
+			{
+				n+=1
+				continue
+			}
+			gl.BindTexture(gl.TEXTURE_2D, cell.bg_texture)
+			gl.DrawArrays(gl.TRIANGLES, n * 6, 6)
+			n +=1
+		}
+	}
+
+
+	gl.BindVertexArray(Window.entity_VAO)
+	gl.UseProgram(Window.entity_shader)
+	gl.ActiveTexture(gl.TEXTURE0)
+
+	set_mat4(Window.entity_shader, "ortho", &ortho)
+	for i in PLAYER_INDEX + 1..<scene.entity_count
+	{
+		if i == 0 || !entity_get_active(u32(i), scene) { continue }
+		entity_draw(entity_get(u32(i), scene), Window.entity_shader, scene)
+	}
+
+	entity_draw(entity_get(PLAYER_INDEX, scene), Window.entity_shader, scene)
+
+	gl.BindVertexArray(0)
+}
+
+
+///////////////////////////////////////////////////////////////////////////
+s_input :: proc(window: glfw.WindowHandle, scene: ^Scene) 
+{
+	if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS 
+	{
+		glfw.SetWindowShouldClose(window, true)
+	}
+
+	if glfw.GetKey(window, glfw.KEY_UP) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_UP]
+		{
+			entity_set_dir(PLAYER_INDEX, {-1, 0}, scene)
+			Game.keys_down[glfw.KEY_UP] = true
+			Game.input_made = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_UP] = false }
+
+	if glfw.GetKey(window, glfw.KEY_DOWN) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_DOWN]
+		{
+			entity_set_dir(PLAYER_INDEX, {1, 0}, scene)
+			Game.keys_down[glfw.KEY_DOWN] = true
+			Game.input_made = true
+		}
+	}
+	else { Game.keys_down[glfw.KEY_DOWN] = false }
+
+	if glfw.GetKey(window, glfw.KEY_LEFT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_LEFT]
+		{
+			entity_set_dir(PLAYER_INDEX, {0, -1}, scene)
+			Game.keys_down[glfw.KEY_LEFT] = true
+			Game.input_made = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_LEFT] = false }
+
+	if glfw.GetKey(window, glfw.KEY_RIGHT) == glfw.PRESS  
+	{
+		if !Game.keys_down[glfw.KEY_RIGHT]
+		{
+			entity_set_dir(PLAYER_INDEX, {0, 1}, scene)
+			Game.keys_down[glfw.KEY_RIGHT] = true
+			Game.input_made = true
+		}
+	} 
+	else { Game.keys_down[glfw.KEY_RIGHT] = false }
+}
+
+
+///////////////////////////////////////////////////////////////////////////
 s_collide :: proc(scene: ^Scene)
 {
 	for i in 0..<scene.entity_count
@@ -21,7 +122,6 @@ s_collide :: proc(scene: ^Scene)
 s_collide_player :: proc(i: u32, scene: ^Scene)
 {
 	entity := entity_get(u32(i), scene)
-	entity.moved = false
 	
 	new_position := entity.position + entity.direction
 	if is_wall(new_position, scene^) || entity.direction == {0, 0} do return
@@ -43,13 +143,6 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 			{
 				linked_entity := entities[j].class.(Object).linked_entity
 				entity_set_active(linked_entity, true, scene)
-
-				entity_move(u32(i), entity.position, new_position, scene)
-
-				entity.position = new_position
-				entity_update(u32(i), entity, scene)
-				entity.moved = true
-				continue
 			}
 			
 			if .PUSHABLE in entities[j].flags
@@ -60,6 +153,14 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 				{
 					entity_move(entities_ids[j], new_position, pushed_new_position, scene)
 					entity_move(u32(i), entity.position, new_position, scene)
+
+
+					entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
+					entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
+
+					scene.entities[entities_ids[j]].sprite.start = screen_position_from_grid_position(new_position, scene^)
+					scene.entities[entities_ids[j]].sprite.target = screen_position_from_grid_position(pushed_new_position, scene^)
+					scene.entities[entities_ids[j]].moved = true
 
 					entity.position = new_position
 					entity_update(u32(i), entity, scene)
@@ -76,9 +177,14 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 	if !entity.moved 
 	{
 		entity_move(u32(i), entity.position, new_position, scene)
+
+		entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
+		entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
 		entity.position = new_position
+		entity.moved = true
 	}
 	
+	fmt.println(entity.moved)
 	entity_update(u32(i), entity, scene)
 }
 
@@ -86,7 +192,6 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 s_collide_enemy :: proc(i: u32, scene: ^Scene)
 {
 	entity := entity_get(u32(i), scene)
-	entity.moved = false
 
 	if entity.direction == {0, 0} do return
 
@@ -117,9 +222,17 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 					entity_move(entities_ids[j], entities[j].position, pushed_new_position, scene)
 					entity_move(u32(i), entity.position, new_position, scene)
 					
+					entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
+					entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
+					
+					scene.entities[entities_ids[j]].sprite.start = screen_position_from_grid_position(new_position, scene^)
+					scene.entities[entities_ids[j]].sprite.target = screen_position_from_grid_position(pushed_new_position, scene^)
+					scene.entities[entities_ids[j]].moved = true
+
 					entity.position = new_position
 					entity_update(u32(i), entity, scene)
 					entity.moved = true
+
 				} 
 				else
 				{
@@ -135,14 +248,17 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 	{
 		new_position = entity.position + entity.direction
 		entity_move(u32(i), entity.position, new_position, scene)
+
+		entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
+		entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
+		entity.moved = true
+
 		entity.position = new_position
 	}
 
 	entity_update(u32(i), entity, scene)
 }
 
-entity_get_moved :: proc(id: u32, scene: ^Scene)-> bool {return scene.entities[id].moved }
-entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
 
 s_static_actions :: proc(scene: ^Scene)
 {
