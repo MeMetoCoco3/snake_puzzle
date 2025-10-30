@@ -44,6 +44,7 @@ Entity :: struct
 
 	moved: bool,
 
+	move_turn: E_TURN,
 	active: bool,
 }
 
@@ -198,7 +199,7 @@ entity_set_link :: proc(id_src: u32, id_dst: u32, scene: ^Scene)
 }
 
 
-entity_get         :: proc(id: u32, scene: ^Scene)-> Entity	 { return scene.entities[id] 		  }
+entity_get         :: proc(id: u32, scene: ^Scene)-> ^Entity	 { return &scene.entities[id] 		  }
 entity_get_active  :: proc(id: u32, scene: ^Scene)-> bool	 	 { return scene.entities[id].active	  }
 entity_get_pos     :: proc(id: u32, scene: ^Scene)-> Vec2		 { return scene.entities[id].position  }
 entity_get_texture :: proc(id: u32, scene: ^Scene)-> u32		 { return scene.entities[id].sprite.texture   }
@@ -206,23 +207,26 @@ entity_get_dir     :: proc(id: u32, scene: ^Scene)-> Vec2		 { return scene.entit
 entity_get_moved :: proc(id: u32, scene: ^Scene)-> bool {return scene.entities[id].moved }
 entity_set_moved :: proc(id: u32, state: bool, scene: ^Scene){scene.entities[id].moved = state}
 
-entity_draw :: proc(entity: Entity, program: u32, scene: ^Scene)
+entity_draw :: proc(sprite: Sprite, program: u32, scene: ^Scene)
 {
-	model := linalg.matrix4_translate_f32(Vec3{entity.sprite.position.x, entity.sprite.position.y, 0})
+	model := linalg.matrix4_translate_f32(Vec3{sprite.position.x, sprite.position.y, 0})
 	// TODO: NOT HARDCODE THE SIZE OBVIOUSLY
     model = model * linalg.matrix4_scale_f32(Vec3{64, 64, 1})
-	set_vec2(program, "u_flip", entity.sprite.uv_flip)
+	set_vec2(program, "u_flip", sprite.uv_flip)
 	set_mat4(program, "model", &model)
 
-	gl.BindTexture(gl.TEXTURE_2D, entity.sprite.texture)
+	gl.BindTexture(gl.TEXTURE_2D, sprite.texture)
 
 	gl.BindVertexArray(Window.entity_VAO)
 	gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
 }
 
-entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2, scene: ^Scene)
+entity_move :: proc(id: u32, entity: ^Entity, next_pos: Vec2, scene: ^Scene)
 {
+
+	curr_pos := entity.position
 	curr_cell := cell_get_by_pos(curr_pos, scene)
+	// next_pos := entity.position + entity.direction
 	next_cell := cell_get_by_pos(next_pos, scene)
 
 	e_prev_count := curr_cell.entity_count
@@ -232,20 +236,23 @@ entity_move :: proc(id: u32, curr_pos: Vec2, next_pos: Vec2, scene: ^Scene)
 	{
 		if (curr_cell.entities_id[i] == id) 
 		{
-			scene.board[i32(curr_pos.x)][int(curr_pos.y)].entities_id[i] = EMPTY_INDEX
-			scene.board[i32(curr_pos.x)][int(curr_pos.y)].entity_count -= 1
+			scene.board[i32(entity.position.x)][int(entity.position.y)].entities_id[i] = EMPTY_INDEX
+			scene.board[i32(entity.position.x)][int(entity.position.y)].entity_count -= 1
 		}
 	}	
 
 	e_next_count := next_cell.entity_count
 	scene.board[i32(next_pos.x)][int(next_pos.y)].entities_id[e_next_count] = id
 	scene.board[i32(next_pos.x)][int(next_pos.y)].entity_count += 1
-	scene.entities[id].position = next_pos
+	entity.position = next_pos
 	
-	scene.entities[id].sprite.start = screen_position_from_grid_position(curr_pos, scene^)
-	scene.entities[id].sprite.target = screen_position_from_grid_position(next_pos, scene^)
+	entity.sprite.start = screen_position_from_grid_position(curr_pos, scene^)
+	entity.sprite.target = screen_position_from_grid_position(next_pos, scene^)
+
+	entity.move_turn = .PLAYER if id == PLAYER_INDEX else .OTHERS
+	entity.moved = true
 	dir := curr_pos - next_pos
-	if dir.x == 0 do entity_set_uv(u32(id), {-dir.y, 1}, scene)
+	if dir.x == 0 do entity.sprite.uv_flip = Vec2{-dir.y, 1}
 }
 
 entities_get_from_pos :: proc(pos: Vec2, scene: ^Scene)->(entities: [2]Entity, ids: [2]u32, count: u32)

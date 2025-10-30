@@ -43,10 +43,10 @@ s_draw :: proc(scene: ^Scene)
 	for i in PLAYER_INDEX + 1..<scene.entity_count
 	{
 		if i == 0 || !entity_get_active(u32(i), scene) { continue }
-		entity_draw(entity_get(u32(i), scene), Window.entity_shader, scene)
+		entity_draw(entity_get(u32(i), scene).sprite, Window.entity_shader, scene)
 	}
 
-	entity_draw(entity_get(PLAYER_INDEX, scene), Window.entity_shader, scene)
+	entity_draw(entity_get(PLAYER_INDEX, scene).sprite, Window.entity_shader, scene)
 
 	gl.BindVertexArray(0)
 }
@@ -67,6 +67,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 			entity_set_dir(PLAYER_INDEX, {-1, 0}, scene)
 			Game.keys_down[glfw.KEY_UP] = true
 			Game.input_made = true
+			Game.turn += E_TURN(1)
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_UP] = false }
@@ -78,6 +79,7 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 			entity_set_dir(PLAYER_INDEX, {1, 0}, scene)
 			Game.keys_down[glfw.KEY_DOWN] = true
 			Game.input_made = true
+			Game.turn += E_TURN(1)
 		}
 	}
 	else { Game.keys_down[glfw.KEY_DOWN] = false }
@@ -89,6 +91,8 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 			entity_set_dir(PLAYER_INDEX, {0, -1}, scene)
 			Game.keys_down[glfw.KEY_LEFT] = true
 			Game.input_made = true
+
+			Game.turn += E_TURN(1)
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_LEFT] = false }
@@ -100,6 +104,8 @@ s_input :: proc(window: glfw.WindowHandle, scene: ^Scene)
 			entity_set_dir(PLAYER_INDEX, {0, 1}, scene)
 			Game.keys_down[glfw.KEY_RIGHT] = true
 			Game.input_made = true
+
+			Game.turn += E_TURN(1)
 		}
 	} 
 	else { Game.keys_down[glfw.KEY_RIGHT] = false }
@@ -114,7 +120,7 @@ s_collide :: proc(scene: ^Scene)
 		entity := entity_get(u32(i), scene)
 
 		if is_player(u32(i)) do s_collide_player(u32(i), scene) 
-		else if is_enemy(entity) do s_collide_enemy(u32(i), scene)
+		else if is_enemy(entity^) do s_collide_enemy(u32(i), scene)
 	}
 }
 
@@ -151,20 +157,10 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
 				if !is_wall(new_position+entity.direction, scene^) && ok_to_push
 				{
-					entity_move(entities_ids[j], new_position, pushed_new_position, scene)
-					entity_move(u32(i), entity.position, new_position, scene)
-
-
-					entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
-					entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
-
-					scene.entities[entities_ids[j]].sprite.start = screen_position_from_grid_position(new_position, scene^)
-					scene.entities[entities_ids[j]].sprite.target = screen_position_from_grid_position(pushed_new_position, scene^)
-					scene.entities[entities_ids[j]].moved = true
-
-					entity.position = new_position
-					entity_update(u32(i), entity, scene)
-					entity.moved = true
+					push_entity := entity_get(entities_ids[j], scene)
+					entity_move(entities_ids[j], push_entity,pushed_new_position, scene)
+					entity_move(u32(i), entity, new_position, scene)
+					push_entity.move_turn = .PLAYER
 				} 
 				else 
 				{
@@ -174,18 +170,8 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 			}
 		}
 	}
-	if !entity.moved 
-	{
-		entity_move(u32(i), entity.position, new_position, scene)
 
-		entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
-		entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
-		entity.position = new_position
-		entity.moved = true
-	}
-	
-	fmt.println(entity.moved)
-	entity_update(u32(i), entity, scene)
+	if !entity.moved do entity_move(u32(i), entity, new_position, scene)
 }
 
 @(private)
@@ -219,23 +205,14 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 				ok_to_push := cell_empty_or_grounded(pushed_new_position, scene)
 				if !is_wall(pushed_new_position, scene^) && ok_to_push
 				{
-					entity_move(entities_ids[j], entities[j].position, pushed_new_position, scene)
-					entity_move(u32(i), entity.position, new_position, scene)
-					
-					entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
-					entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
-					
-					scene.entities[entities_ids[j]].sprite.start = screen_position_from_grid_position(new_position, scene^)
-					scene.entities[entities_ids[j]].sprite.target = screen_position_from_grid_position(pushed_new_position, scene^)
-					scene.entities[entities_ids[j]].moved = true
-
-					entity.position = new_position
-					entity_update(u32(i), entity, scene)
-					entity.moved = true
-
+					fmt.println("JAMON")
+					pushed_entity := entity_get(entities_ids[j], scene)
+					entity_move(entities_ids[j],pushed_entity, pushed_new_position, scene)
+					entity_move(u32(i), entity, new_position, scene)
 				} 
 				else
 				{
+					fmt.println("COCALCOL")
 					opposite_position := Vec2{-entity.direction.x, -entity.direction.y} + entity.position
 					if is_wall(opposite_position, scene^) || !cell_empty_or_grounded(opposite_position, scene) do entity.moved = true
 					else do entity.direction = {-entity.direction.x, -entity.direction.y}
@@ -244,19 +221,10 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 		}
 	}
 
-	if !entity.moved 
-	{
-		new_position = entity.position + entity.direction
-		entity_move(u32(i), entity.position, new_position, scene)
+	new_position = entity.position + entity.direction
 
-		entity.sprite.start = screen_position_from_grid_position(entity.position, scene^)
-		entity.sprite.target = screen_position_from_grid_position(new_position, scene^)
-		entity.moved = true
+	if !entity.moved do	entity_move(u32(i), entity, new_position, scene)
 
-		entity.position = new_position
-	}
-
-	entity_update(u32(i), entity, scene)
 }
 
 

@@ -47,10 +47,11 @@ Game : struct
 	current_level: i32,
 	scene: Scene,
 	input_made: bool,
+	turn: E_TURN,
 	keys_down: [glfw.KEY_LAST]bool,
 	load_next: bool,
 
-	moving_sprites: bool,
+	moving_sprites: E_TURN,
 	movement_timer: f32
 }
 
@@ -72,6 +73,13 @@ Scene :: struct
 }
 
 
+E_TURN :: enum
+{
+	NONE,
+	PLAYER,
+	OTHERS,
+	MOD,
+}
 
 main :: proc() 
 {
@@ -135,16 +143,28 @@ main :: proc()
 		current_time := f32(glfw.GetTime())
 		delta_time = current_time - last_frame
 		last_frame = current_time
-		s_input(Window.handler, &Game.scene)
 
-		if Game.input_made && !Game.moving_sprites
+		if Game.moving_sprites == .NONE do s_input(Window.handler, &Game.scene)
+
+		if Game.input_made
 		{
-			s_collide(&Game.scene)
-			s_static_actions(&Game.scene)
-			Game.input_made = false
-			Game.moving_sprites = true
+			#partial switch Game.turn 
+			{
+				case .PLAYER:
+					s_collide_player(PLAYER_INDEX, &Game.scene)
+					Game.moving_sprites = .PLAYER
+				case .OTHERS:
+					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
+					s_static_actions(&Game.scene)
 
-			entities_print(to=3, scene=&Game.scene)
+					Game.moving_sprites = .OTHERS
+				case .NONE:
+				case :
+					out("WRONG STATE")
+			}
+			
+			Game.turn = .NONE
+
 			if Game.load_next
 			{
 				entities_zero(&Game.scene)
@@ -154,9 +174,10 @@ main :: proc()
 			}
 		} 
 		
-
-		if Game.moving_sprites
+		fmt.println(Game.moving_sprites)
+		if Game.moving_sprites != .NONE
 		{
+			fmt.println("JAMON!")
 			if Game.movement_timer < 1.0 
 			{
 				Game.movement_timer += delta_time / MOVE_DURATION
@@ -164,6 +185,8 @@ main :: proc()
 				for i in PLAYER_INDEX..<Game.scene.entity_count
 				{
 					if !Game.scene.entities[i].moved do continue
+					if !(Game.scene.entities[i].move_turn == Game.moving_sprites) do continue
+
 					e := &Game.scene.entities[i].sprite
 					new_position := linalg.lerp(e.start, e.target, alpha)
 					e.position = new_position
@@ -171,16 +194,18 @@ main :: proc()
 
 				if alpha == 1.0 
 				{
-					Game.moving_sprites = false
+					Game.moving_sprites += E_TURN(1)
+					if Game.moving_sprites == .MOD do Game.moving_sprites = .NONE
+					Game.turn = Game.moving_sprites
+
 					Game.movement_timer = 0
 					for i in PLAYER_INDEX..<Game.scene.entity_count
 					{
-						Game.scene.entities[i].moved = false
+						if !(Game.scene.entities[i].move_turn == Game.moving_sprites) do Game.scene.entities[i].moved = false
 					}
 				}
 			}
 		}
-			
 			
 		clear_color(bg_color)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
