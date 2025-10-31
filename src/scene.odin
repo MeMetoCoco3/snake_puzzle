@@ -10,6 +10,9 @@ S_PATH :: "scenes"
 load_scene :: proc(level: i32)
 {
 	Game.current_level = level
+	Game.moving_sprites = .NONE
+	Game.turn = .NONE
+	Game.movement_timer = 0
 
 	scene := &Game.scene
 	scene_name := fmt.tprintf("%v/%02d.scene", S_PATH, level)
