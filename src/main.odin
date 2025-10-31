@@ -8,7 +8,7 @@ import "vendor:glfw"
 import "core:math/linalg"
 
 CELL_SIZE 	  :: 64
-MOVE_DURATION :: 0.2
+MOVE_DURATION :: 0.1
 
 
 E_TEXTURE :: enum
@@ -136,7 +136,7 @@ main :: proc()
 	Game.scene.textures = textures
 	load_scene(2)
 	
-
+	fmt.println(Game.scene.board[2][2])
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -151,7 +151,10 @@ main :: proc()
 			#partial switch Game.turn 
 			{
 				case .PLAYER:
+					board_print_entities(scene = &Game.scene)
 					s_collide_player(PLAYER_INDEX, &Game.scene)
+
+					fmt.println(Game.scene.board[2][2])
 					Game.moving_sprites = .PLAYER
 				case .OTHERS:
 					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
@@ -169,15 +172,12 @@ main :: proc()
 			{
 				entities_zero(&Game.scene)
 				load_scene(Game.current_level)
-				board_print_entities(scene = &Game.scene)
 				Game.load_next = false
 			}
 		} 
 		
-		fmt.println(Game.moving_sprites)
 		if Game.moving_sprites != .NONE
 		{
-			fmt.println("JAMON!")
 			if Game.movement_timer < 1.0 
 			{
 				Game.movement_timer += delta_time / MOVE_DURATION

@@ -223,23 +223,31 @@ entity_draw :: proc(sprite: Sprite, program: u32, scene: ^Scene)
 
 entity_move :: proc(id: u32, entity: ^Entity, next_pos: Vec2, scene: ^Scene)
 {
-
 	curr_pos := entity.position
 	curr_cell := cell_get_by_pos(curr_pos, scene)
-	// next_pos := entity.position + entity.direction
 	next_cell := cell_get_by_pos(next_pos, scene)
 
 	e_prev_count := curr_cell.entity_count
 	
-
+	position_on_entities_id : u32
 	for i in 0..< e_prev_count 
 	{
 		if (curr_cell.entities_id[i] == id) 
 		{
 			scene.board[i32(entity.position.x)][int(entity.position.y)].entities_id[i] = EMPTY_INDEX
 			scene.board[i32(entity.position.x)][int(entity.position.y)].entity_count -= 1
-		}
+			position_on_entities_id = i
+		} 
 	}	
+	if position_on_entities_id != MAX_ENTITIES_PER_CELL-1 && e_prev_count > 1
+	{
+		entities_id := &scene.board[i32(entity.position.x)][int(entity.position.y)].entities_id 
+		for i in position_on_entities_id+1..< MAX_ENTITIES_PER_CELL
+		{
+			entities_id[i-1] = entities_id[i]
+			entities_id[i] = EMPTY_INDEX
+		}
+	}
 
 	e_next_count := next_cell.entity_count
 	scene.board[i32(next_pos.x)][int(next_pos.y)].entities_id[e_next_count] = id

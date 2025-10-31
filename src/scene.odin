@@ -84,9 +84,9 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 			pos.y, ok = strconv.parse_f32(nums[1]); assert(ok)
 
 			count := scene.board[int(pos.x)][int(pos.y)].entity_count
+			scene.board[int(pos.x)][int(pos.y)].entity_count += 1
 			scene.board[int(pos.x)][int(pos.y)].entities_id[count] = u32(entity_id)
 			scene.entities[entity_id].position = pos
-			scene.board[int(pos.x)][int(pos.y)].entity_count += 1
 			
 			scene.entities[entity_id].sprite.position = screen_position_from_grid_position(pos, scene^)
 		case "dir":
@@ -199,12 +199,19 @@ parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
 		case '┤':
 			scene.board[row][column].bg_texture = scene.textures[.MR]
 			scene.board[row][column].wall = true 
-		case '$':
+		case '[':
 			scene.board[row][column].bg_texture = scene.textures[.IBL]
 			scene.board[row][column].wall = true 
-		case '(':
+		case ']':
 			scene.board[row][column].bg_texture = scene.textures[.IBR]
 			scene.board[row][column].wall = true 
+		case '(':
+			scene.board[row][column].bg_texture = scene.textures[.ITL]
+			scene.board[row][column].wall = true 
+		case ')':
+			scene.board[row][column].bg_texture = scene.textures[.ITR]
+			scene.board[row][column].wall = true 
+
 		case '-':
 			scene.board[row][column].no_bg = true
 		}
