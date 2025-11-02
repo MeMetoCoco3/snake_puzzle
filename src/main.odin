@@ -159,7 +159,6 @@ main :: proc()
 					Game.moving_sprites = .PLAYER
 				case .OTHERS:
 					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
-
 					s_static_actions(&Game.scene)
 					Game.moving_sprites = .OTHERS
 				case .NONE:

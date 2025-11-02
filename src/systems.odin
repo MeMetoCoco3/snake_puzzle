@@ -242,17 +242,24 @@ s_static_actions :: proc(scene: ^Scene)
 {
 	for i in PLAYER_INDEX..<scene.entity_count
 	{
+		if i == 3 do fmt.println("GOOD")
 		entity := entity_get(u32(i), scene)
 		if entity.direction == {0, 0} 
 		{
 			if .STOMPABLE in entity.flags
 			{
+				fmt.println("BETTER")
 				_, _, count := entities_get_from_pos(entity.position, scene)
-				fmt.println(i, entity)
 
 				linked_entity := entity.class.(Object).linked_entity
 				if count > 1 { entity_set_stompable(linked_entity, true, scene) } 
 				else { entity_set_stompable(linked_entity, false, scene) }
+			}
+
+			if .FALLTHROUGH in entity.flags
+			{
+				_, _, count := entities_get_from_pos(entity.position, scene)
+				if count > 1 do out("BIEN")
 			}
 
 

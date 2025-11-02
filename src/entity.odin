@@ -53,11 +53,19 @@ Entity :: struct
 Class :: union
 {
 	Object,
-	Player
+	Player,
+	// Trapdoor,
 }
+
+
+// // Trapdoor :: struct
+// {
+// 	open: bool
+// }
 
 Player :: struct{}
 Object :: struct{
+	open: bool,
 	link_type: E_LINK,
 	linked_entity: u32
 }
@@ -165,8 +173,7 @@ entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 			class = Object{
 				link_type = .SET_STOMPABLE,
 			}, 
-			flags = {.GROUNDED, .STOMPABLE
-			},
+			flags = {.GROUNDED, .STOMPABLE},
 			position = {-1, -1},
 			sprite = Sprite \
 			{
