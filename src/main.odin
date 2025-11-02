@@ -21,6 +21,8 @@ E_TEXTURE :: enum
 	CLEAN_PIG,
 	BOX, BUTTON,
 	GOAL, CROCO,
+	TRAPDOOR_OPEN, TRAPDOOR_CLOSED,
+
 }
 
 Cell :: struct
@@ -128,15 +130,16 @@ main :: proc()
 	load_texture("assets/2D/IBR.png", .IBR, &textures)
 	load_texture("assets/2D/ITL.png", .ITL, &textures)
 	load_texture("assets/2D/ITR.png", .ITR, &textures)
+	load_texture("assets/2D/TRAPDOOR_OPEN.png", .TRAPDOOR_OPEN, &textures)
+	load_texture("assets/2D/TRAPDOOR_CLOSED.png", .TRAPDOOR_CLOSED, &textures)
 
 	bg_color := get_pixel_from_image("assets/2D/tl.png", 0, 0)
 
 	Window.grid_shader = load_shaders("shaders/grid_vs.glsl", "shaders/grid_fs.glsl")
 	Window.entity_shader = load_shaders("shaders/entity_vs.glsl", "shaders/entity_fs.glsl")
 	Game.scene.textures = textures
-	load_scene(2)
+	load_scene(3)
 	
-	fmt.println(Game.scene.board[2][2])
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
 	{
@@ -151,15 +154,13 @@ main :: proc()
 			#partial switch Game.turn 
 			{
 				case .PLAYER:
-					board_print_entities(scene = &Game.scene)
 					s_collide_player(PLAYER_INDEX, &Game.scene)
 
-					fmt.println(Game.scene.board[2][2])
 					Game.moving_sprites = .PLAYER
 				case .OTHERS:
 					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
-					s_static_actions(&Game.scene)
 
+					s_static_actions(&Game.scene)
 					Game.moving_sprites = .OTHERS
 				case .NONE:
 				case :
@@ -186,7 +187,6 @@ main :: proc()
 				{
 					if !Game.scene.entities[i].moved do continue
 					if !(Game.scene.entities[i].move_turn == Game.moving_sprites) do continue
-
 					e := &Game.scene.entities[i].sprite
 					new_position := linalg.lerp(e.start, e.target, alpha)
 					e.position = new_position
@@ -209,7 +209,7 @@ main :: proc()
 			
 		clear_color(bg_color)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-
+		
 		s_draw(&Game.scene)
 
 		glfw.SwapBuffers(Window.handler)

@@ -145,10 +145,20 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 			}
 
 			if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+			// if .STOMPABLE in entities[j].flags
+			if .FALLTHROUGH in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
+
+			
 			if .PRESSABLE in entities[j].flags
 			{
 				linked_entity := entities[j].class.(Object).linked_entity
-				entity_set_active(linked_entity, true, scene)
+				switch entities[j].class.(Object).link_type
+				{
+				case .SET_ACTIVE:
+					entity_set_active(linked_entity, true, scene)
+				case .SET_STOMPABLE:
+					entity_set_stompable(linked_entity, true, scene)
+				}
 			}
 			
 			if .PUSHABLE in entities[j].flags
@@ -230,34 +240,41 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 
 s_static_actions :: proc(scene: ^Scene)
 {
-	for i in 0..<scene.entity_count
+	for i in PLAYER_INDEX..<scene.entity_count
 	{
 		entity := entity_get(u32(i), scene)
 		if entity.direction == {0, 0} 
 		{
+			if .STOMPABLE in entity.flags
+			{
+				_, _, count := entities_get_from_pos(entity.position, scene)
+				fmt.println(i, entity)
+
+				linked_entity := entity.class.(Object).linked_entity
+				if count > 1 { entity_set_stompable(linked_entity, true, scene) } 
+				else { entity_set_stompable(linked_entity, false, scene) }
+			}
+
+
 			if .PRESSABLE in entity.flags
 			{
 				_, _, count := entities_get_from_pos(entity.position, scene)
+				linked_entity_id := entity.class.(Object).linked_entity
+				linked_entity := entity_get(linked_entity_id, scene)
+			
 
-				linked_entity := entity.class.(Object).linked_entity
-				if count > 1 { entity_set_active(linked_entity, true, scene) } 
-				else { entity_set_active(linked_entity, false, scene) }
+				switch linked_entity.class.(Object).link_type {
+					case .SET_ACTIVE:
+						if count > 1 { entity_set_active(linked_entity_id, true, scene) } 
+						else { entity_set_active(linked_entity_id, false, scene) }
+					case .SET_STOMPABLE:
+						if count > 1 { entity_set_stompable(linked_entity_id, true, scene) } 
+						else { entity_set_stompable(linked_entity_id, false, scene) }
+				}
 			} 
+
 			continue
 		}
 	}
 }
-
-//
-// s_move :: proc(scene: ^Scene)
-// {
-// 	for i in 0..<scene.entity_count
-// 	{
-// 		entity := entity_get(u32(i), scene)
-// 		if entity.direction != {0, 0} && !entity.moved 
-// 		{
-// 			entity_move(u32(i), entity.position, entity.position + entity.direction, scene)
-// 		} else do entity_set_moved(u32(i), false, scene)
-// 	}
-// }
 

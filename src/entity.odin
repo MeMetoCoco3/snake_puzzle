@@ -15,7 +15,8 @@ E_ENTITY :: enum
 	GOAL,
 	BUTTON,
 	BOX,
-	CROCO
+	CROCO,
+	TRAPDOOR,
 }
 
 
@@ -28,6 +29,7 @@ Actions :: enum
 	PUSHABLE,
 	MOVER,
 	GROUNDED,
+	FALLTHROUGH,
 	ENEMY
 }
 
@@ -56,7 +58,14 @@ Class :: union
 
 Player :: struct{}
 Object :: struct{
+	link_type: E_LINK,
 	linked_entity: u32
+}
+
+E_LINK :: enum
+{
+	SET_ACTIVE,
+	SET_STOMPABLE,
 }
 
 Sprite :: struct 
@@ -93,9 +102,11 @@ entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 			active = true,
 		},
 
-		.GOAL = Entity\
+		.GOAL = Entity \
 		{
-			class = Object{}, 
+			class = Object{
+				link_type = .SET_ACTIVE,
+			}, 
 			flags = {.WIN}, 
 			position = {-1, -1}, 
 			sprite = Sprite \
@@ -147,7 +158,25 @@ entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 				moving = false,
 			},
 			active = true,
-		}
+		},
+
+		.TRAPDOOR = Entity \
+		{
+			class = Object{
+				link_type = .SET_STOMPABLE,
+			}, 
+			flags = {.GROUNDED, .STOMPABLE
+			},
+			position = {-1, -1},
+			sprite = Sprite \
+			{
+				texture = textures[.TRAPDOOR_OPEN], 
+				uv_flip = {1, 1},
+				moving = false,
+			},
+			active = true,
+		},
+
 	}
 
 	new_entity := entity_prefab[class]
@@ -183,6 +212,24 @@ entity_update :: proc(id: u32, entity: Entity, scene: ^Scene) {
 entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scene.board[i32(pos.x)][i32(pos.y)].entity_count }
 entity_set_dir 		   :: proc(id: u32, dir: Vec2, scene: ^Scene)    { scene.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool, scene: ^Scene)  { scene.entities[id].active = state }
+
+entity_set_stompable   :: proc(id: u32, state: bool, scene: ^Scene)
+{ 
+	if state
+	{
+		scene.entities[id].flags -= {.FALLTHROUGH}
+		scene.entities[id].flags += {.STOMPABLE}
+		scene.entities[id].sprite.texture = scene.textures[.TRAPDOOR_CLOSED]
+	}
+	else 
+	{
+		scene.entities[id].flags += {.FALLTHROUGH}
+		scene.entities[id].flags -= {.STOMPABLE}
+		scene.entities[id].sprite.texture = scene.textures[.TRAPDOOR_OPEN]
+	}
+
+}
+
 entity_set_uv 	:: proc(id: u32, u_flip: Vec2, scene: ^Scene)        { scene.entities[id].sprite.uv_flip = u_flip }
 
 entity_set_link :: proc(id_src: u32, id_dst: u32, scene: ^Scene)
@@ -325,6 +372,7 @@ board_print_entities :: proc(row_start:= 0, row_to:= -1, column_start:= 0, colum
 		for i in column_start..< COL_TO do fmt.printf("%v ", scene.board[j][i].entities_id[0])
 		fmt.println()
 	}
+	fmt.println()
 }
 
 board_print_bg :: proc(row_start:= 0, row_to:= -1, column_start:= 0, column_to:= -1, scene: ^Scene){

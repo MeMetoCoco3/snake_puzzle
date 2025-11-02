@@ -146,6 +146,8 @@ parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bo
 			kind = .BOX
 		case "CROCO":
 			kind = .CROCO
+		case "TRAPDOOR":
+			kind = .TRAPDOOR
 	}
 
 	if fields_left do line^ = line[pointer+1:len(line)-1]; else do line^ = ""
@@ -155,7 +157,6 @@ parse_class_from_line :: proc(line: ^string)-> (kind: E_ENTITY,  fields_left: bo
 screen_position_from_grid_position :: proc(position: Vec2, scene: Scene)-> Vec2{
 	return Vec2{scene.offset.x + (position.y * CELL_SIZE), scene.offset.y +( position.x * CELL_SIZE)}
 }
-
 
 
 @(private)
