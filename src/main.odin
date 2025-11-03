@@ -22,7 +22,6 @@ E_TEXTURE :: enum
 	BOX, BUTTON,
 	GOAL, CROCO,
 	TRAPDOOR_OPEN, TRAPDOOR_CLOSED,
-
 }
 
 Cell :: struct
@@ -154,15 +153,12 @@ main :: proc()
 			#partial switch Game.turn 
 			{
 				case .PLAYER:
-					s_collide_player(PLAYER_INDEX, &Game.scene)
 
+					s_collide_player(PLAYER_INDEX, &Game.scene)
 					Game.moving_sprites = .PLAYER
 				case .OTHERS:
-				// TODO: PARECE QUE TENEMOS UN PROBLEMA AQUI
 					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
-					s_static_actions(&Game.scene)
 					Game.moving_sprites = .OTHERS
-					fmt.println(cell_get_by_pos({7,5}, &Game.scene))
 				case .NONE:
 				case :
 					out("WRONG STATE")

@@ -144,23 +144,11 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 				Game.current_level += 1
 			}
 
-			if .ENEMY in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-			// if .STOMPABLE in entities[j].flags
-			if .FALLTHROUGH in entities[j].flags do glfw.SetWindowShouldClose(Window.handler, true)
-
-			
-			if .PRESSABLE in entities[j].flags
-			{
-				linked_entity := entities[j].class.(Object).linked_entity
-				switch entities[j].class.(Object).link_type
-				{
-				case .SET_ACTIVE:
-					entity_set_active(linked_entity, true, scene)
-				case .SET_FALLTHROUGH:
-					entity_set_fallthrough(linked_entity, true, scene)
-				}
+			if .ENEMY in entities[j].flags {
+				fmt.println("KIIASIDAK")
+ glfw.SetWindowShouldClose(Window.handler, true)
 			}
-			
+						
 			if .PUSHABLE in entities[j].flags
 			{
 				pushed_new_position := entity.position + (2*entity.direction)
@@ -189,7 +177,7 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 {
 	entity := entity_get(u32(i), scene)
 
-	if entity.direction == {0, 0} do return
+	if entity.direction == {0, 0} || !entity.active do return
 
 	new_position := entity.position + entity.direction
 	
@@ -207,7 +195,10 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 	{
 		if entities_ids[j] > 0 && entity_get_active(entities_ids[j], scene)
 		{
-			if is_player(entities_ids[j]) do glfw.SetWindowShouldClose(Window.handler, true) 
+			if is_player(entities_ids[j]) 
+			{
+				glfw.SetWindowShouldClose(Window.handler, true) 
+			}
 
 			if .PUSHABLE in entities[j].flags
 			{
@@ -237,52 +228,94 @@ s_collide_enemy :: proc(i: u32, scene: ^Scene)
 
 }
 
-
-s_static_actions :: proc(scene: ^Scene)
+static_action :: proc(position: Vec2, scene: ^Scene)
 {
-	for i in PLAYER_INDEX..<scene.entity_count
-	{
-		entity := entity_get(u32(i), scene)
-		if entity.direction == {0, 0} 
-		{
-			if .STOMPABLE in entity.flags
-			{
-				_, _, count := entities_get_from_pos(entity.position, scene)
+	cell := cell_get_by_pos(position, scene)
 
-				linked_entity := entity.class.(Object).linked_entity
-				if count > 1 { entity_set_fallthrough(linked_entity, true, scene) } 
-				else { entity_set_fallthrough(linked_entity, false, scene) }
+	if position.x == 8 do fmt.println(position)
+	if cell.entity_count == 0 do return
+	for i in 0..<cell.entity_count
+	{
+		id := cell.entities_id[i]
+		entity := entity_get(id, scene)
+
+		if .PRESSABLE in entity.flags
+		{
+			_, _, count := entities_get_from_pos(entity.position, scene)
+			linked_id := entity.class.(Object).linked_entity
+			linked_entity := entity_get(linked_id, scene)
+
+			switch linked_entity.class.(Object).link_type
+			{
+				case .SET_ACTIVE:
+					state := linked_entity.active
+					entity_set_active(linked_id, !state, scene)
+
+				case .SET_FALLTHROUGH:
+					state := .FALLTHROUGH in linked_entity.flags
+					entity_set_fallthrough(linked_id, state, scene)
 			}
 
-			// if .FALLTHROUGH in entity.flags
-			// {
-			// 	e, ids, count := entities_get_from_pos(entity.position, scene)
-			// 	fmt.println("CELL" , cell_get_by_pos(entity.position, scene))
-			// 	fmt.println("COUNT:", count)
-			// 	fmt.println("IDS", ids)
-			// 	if count > 1 do out("BIEN")
-			// }
-			//
-
-			if .PRESSABLE in entity.flags
-			{
-				_, _, count := entities_get_from_pos(entity.position, scene)
-				linked_entity_id := entity.class.(Object).linked_entity
-				linked_entity := entity_get(linked_entity_id, scene)
-			
-
-				switch linked_entity.class.(Object).link_type {
-					case .SET_ACTIVE:
-						if count > 1 { entity_set_active(linked_entity_id, true, scene) } 
-						else { entity_set_active(linked_entity_id, false, scene) }
-					case .SET_FALLTHROUGH:
-						if count > 1 { entity_set_fallthrough(linked_entity_id, true, scene) } 
-						else { entity_set_fallthrough(linked_entity_id, false, scene) }
-				}
-			} 
-
-			continue
+		}
+		
+		if .FALLTHROUGH in entity.flags
+		{
+			for j in 0..<cell.entity_count
+			{ 
+				new_id := cell.entities_id[j]
+				if new_id == id do continue
+				entity_kill(new_id, scene)
+			}
+			break
 		}
 	}
+
 }
+// s_static_actions :: proc(scene: ^Scene)
+// {
+// 	for i in PLAYER_INDEX..<scene.entity_cout
+// 	{
+// 		entity := entity_get(u32(i), scene)
+// 		if entity.direction == {0, 0} 
+// 		{
+// 			if .STOMPABLE in entity.flags
+// 			{
+// 				_, _, count := entities_get_from_pos(entity.position, scene)
+//
+// 				linked_entity := entity.class.(Object).linked_entity
+// 				if count > 1 { entity_set_fallthrough(linked_entity, true, scene) } 
+// 				else { entity_set_fallthrough(linked_entity, false, scene) }
+// 			}
+//
+// 			// if .FALLTHROUGH in entity.flags
+// 			// {
+// 			// 	e, ids, count := entities_get_from_pos(entity.position, scene)
+// 			// 	fmt.println("CELL" , cell_get_by_pos(entity.position, scene))
+// 			// 	fmt.println("COUNT:", count)
+// 			// 	fmt.println("IDS", ids)
+// 			// 	if count > 1 do out("BIEN")
+// 			// }
+// 			//
+//
+// 			if .PRESSABLE in entity.flags
+// 			{
+// 				_, _, count := entities_get_from_pos(entity.position, scene)
+// 				linked_entity_id := entity.class.(Object).linked_entity
+// 				linked_entity := entity_get(linked_entity_id, scene)
+//
+//
+// 				switch linked_entity.class.(Object).link_type {
+// 					case .SET_ACTIVE:
+// 						if count > 1 { entity_set_active(linked_entity_id, true, scene) } 
+// 						else { entity_set_active(linked_entity_id, false, scene) }
+// 					case .SET_FALLTHROUGH:
+// 						if count > 1 { entity_set_fallthrough(linked_entity_id, true, scene) } 
+// 						else { entity_set_fallthrough(linked_entity_id, false, scene) }
+// 				}
+// 			} 
+//
+// 			continue
+// 		}
+// 	}
+// }
 

@@ -105,7 +105,9 @@ parse_fields_from_line :: proc(line: ^string, entity_id: u32, scene: ^Scene)
 			val, ok := strconv.parse_int(parts[1])
 			if !ok do out()
 			entity_set_link(entity_id, u32(val), scene)
-
+		case "set_fall":
+			val := parts[1]=="f" ? false : true
+			entity_set_fallthrough(entity_id, val, scene)
 		case "active":
 			val := parts[1]=="f" ? false : true
 			entity_set_active(entity_id, val, scene)

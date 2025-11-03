@@ -24,7 +24,6 @@ E_ENTITY :: enum
 Actions :: enum
 {
 	WIN,
-	STOMPABLE, 
 	PRESSABLE,
 	PUSHABLE,
 	MOVER,
@@ -234,21 +233,23 @@ entity_set_fallthrough   :: proc(id: u32, state: bool, scene: ^Scene)
 		e.sprite.texture = scene.textures[.TRAPDOOR_OPEN]
 	}
 
-	cell := cell_get_by_pos(e.position, scene)
-	
-	if cell.entity_count > 1
-	{
-		for i in 0..<cell.entity_count
-		{
-			id := cell.entities_id[i]
-			if is_player(id) do out("GOOD")
-			else if is_enemy(entity_get(id, scene)^) do entity_kill(id, scene)
-		}
-	}
+	// cell := cell_get_by_pos(e.position, scene)
+	//
+	// if cell.entity_count > 1
+	// {
+	// 	fmt.println("JAMON")
+	// 	for i in 0..<cell.entity_count
+	// 	{
+	// 		id := cell.entities_id[i]
+	// 		if is_player(id) do out("GOOD")
+	// 		else if is_enemy(entity_get(id, scene)^) do entity_kill(id, scene)
+	// 	}
+	// }
 }
 
 entity_kill :: proc(id: u32, scene: ^Scene)
 {
+	fmt.println("KILL")
 	entity_set_active(id, false, scene)
 
 	entity := entity_get(id, scene)
@@ -320,7 +321,10 @@ entity_move :: proc(id: u32, entity: ^Entity, next_pos: Vec2, scene: ^Scene)
 {
 	curr_pos := entity.position
 	curr_cell := cell_get_by_pos(curr_pos, scene)
+	static_action(curr_pos, scene)
+
 	next_cell := cell_get_by_pos(next_pos, scene)
+
 
 	e_prev_count := curr_cell.entity_count
 	
@@ -357,6 +361,8 @@ entity_move :: proc(id: u32, entity: ^Entity, next_pos: Vec2, scene: ^Scene)
 	entity.moved = true
 	dir := curr_pos - next_pos
 	if dir.x == 0 do entity.sprite.uv_flip = Vec2{-dir.y, 1}
+
+	static_action(next_pos, scene)
 }
 
 entities_get_from_pos :: proc(pos: Vec2, scene: ^Scene)->(entities: [2]Entity, ids: [2]u32, count: u32)
