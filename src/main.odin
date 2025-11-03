@@ -138,7 +138,7 @@ main :: proc()
 	Window.grid_shader = load_shaders("shaders/grid_vs.glsl", "shaders/grid_fs.glsl")
 	Window.entity_shader = load_shaders("shaders/entity_vs.glsl", "shaders/entity_fs.glsl")
 	Game.scene.textures = textures
-	load_scene(3)
+	load_scene(4)
 	
 	main_loop: 
 	for (!glfw.WindowShouldClose(Window.handler)) 
@@ -158,9 +158,11 @@ main :: proc()
 
 					Game.moving_sprites = .PLAYER
 				case .OTHERS:
+				// TODO: PARECE QUE TENEMOS UN PROBLEMA AQUI
 					for i in PLAYER_INDEX+1..<Game.scene.entity_count do s_collide_enemy(u32(i), &Game.scene)
 					s_static_actions(&Game.scene)
 					Game.moving_sprites = .OTHERS
+					fmt.println(cell_get_by_pos({7,5}, &Game.scene))
 				case .NONE:
 				case :
 					out("WRONG STATE")

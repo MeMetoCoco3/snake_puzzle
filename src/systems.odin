@@ -118,7 +118,7 @@ s_collide :: proc(scene: ^Scene)
 	for i in 0..<scene.entity_count
 	{
 		entity := entity_get(u32(i), scene)
-
+		if !entity.active do continue
 		if is_player(u32(i)) do s_collide_player(u32(i), scene) 
 		else if is_enemy(entity^) do s_collide_enemy(u32(i), scene)
 	}
@@ -156,8 +156,8 @@ s_collide_player :: proc(i: u32, scene: ^Scene)
 				{
 				case .SET_ACTIVE:
 					entity_set_active(linked_entity, true, scene)
-				case .SET_STOMPABLE:
-					entity_set_stompable(linked_entity, true, scene)
+				case .SET_FALLTHROUGH:
+					entity_set_fallthrough(linked_entity, true, scene)
 				}
 			}
 			
@@ -242,26 +242,27 @@ s_static_actions :: proc(scene: ^Scene)
 {
 	for i in PLAYER_INDEX..<scene.entity_count
 	{
-		if i == 3 do fmt.println("GOOD")
 		entity := entity_get(u32(i), scene)
 		if entity.direction == {0, 0} 
 		{
 			if .STOMPABLE in entity.flags
 			{
-				fmt.println("BETTER")
 				_, _, count := entities_get_from_pos(entity.position, scene)
 
 				linked_entity := entity.class.(Object).linked_entity
-				if count > 1 { entity_set_stompable(linked_entity, true, scene) } 
-				else { entity_set_stompable(linked_entity, false, scene) }
+				if count > 1 { entity_set_fallthrough(linked_entity, true, scene) } 
+				else { entity_set_fallthrough(linked_entity, false, scene) }
 			}
 
-			if .FALLTHROUGH in entity.flags
-			{
-				_, _, count := entities_get_from_pos(entity.position, scene)
-				if count > 1 do out("BIEN")
-			}
-
+			// if .FALLTHROUGH in entity.flags
+			// {
+			// 	e, ids, count := entities_get_from_pos(entity.position, scene)
+			// 	fmt.println("CELL" , cell_get_by_pos(entity.position, scene))
+			// 	fmt.println("COUNT:", count)
+			// 	fmt.println("IDS", ids)
+			// 	if count > 1 do out("BIEN")
+			// }
+			//
 
 			if .PRESSABLE in entity.flags
 			{
@@ -274,9 +275,9 @@ s_static_actions :: proc(scene: ^Scene)
 					case .SET_ACTIVE:
 						if count > 1 { entity_set_active(linked_entity_id, true, scene) } 
 						else { entity_set_active(linked_entity_id, false, scene) }
-					case .SET_STOMPABLE:
-						if count > 1 { entity_set_stompable(linked_entity_id, true, scene) } 
-						else { entity_set_stompable(linked_entity_id, false, scene) }
+					case .SET_FALLTHROUGH:
+						if count > 1 { entity_set_fallthrough(linked_entity_id, true, scene) } 
+						else { entity_set_fallthrough(linked_entity_id, false, scene) }
 				}
 			} 
 

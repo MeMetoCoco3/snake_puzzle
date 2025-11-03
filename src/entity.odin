@@ -73,7 +73,7 @@ Object :: struct{
 E_LINK :: enum
 {
 	SET_ACTIVE,
-	SET_STOMPABLE,
+	SET_FALLTHROUGH,
 }
 
 Sprite :: struct 
@@ -171,9 +171,9 @@ entity_new :: proc(class: E_ENTITY, scene: ^Scene)-> (Entity, u32)
 		.TRAPDOOR = Entity \
 		{
 			class = Object{
-				link_type = .SET_STOMPABLE,
+				link_type = .SET_FALLTHROUGH,
 			}, 
-			flags = {.GROUNDED, .STOMPABLE},
+			flags = {.GROUNDED, .FALLTHROUGH},
 			position = {-1, -1},
 			sprite = Sprite \
 			{
@@ -220,21 +220,62 @@ entities_count_on_cell :: proc(pos: Vec2, scene: Scene)-> u32    	 { return scen
 entity_set_dir 		   :: proc(id: u32, dir: Vec2, scene: ^Scene)    { scene.entities[id].direction = dir  }
 entity_set_active      :: proc(id: u32, state: bool, scene: ^Scene)  { scene.entities[id].active = state }
 
-entity_set_stompable   :: proc(id: u32, state: bool, scene: ^Scene)
+entity_set_fallthrough   :: proc(id: u32, state: bool, scene: ^Scene)
 { 
+	e := &scene.entities[id]
 	if state
 	{
-		scene.entities[id].flags -= {.FALLTHROUGH}
-		scene.entities[id].flags += {.STOMPABLE}
-		scene.entities[id].sprite.texture = scene.textures[.TRAPDOOR_CLOSED]
+		e.flags -= {.FALLTHROUGH}
+		e.sprite.texture = scene.textures[.TRAPDOOR_CLOSED]
 	}
 	else 
 	{
-		scene.entities[id].flags += {.FALLTHROUGH}
-		scene.entities[id].flags -= {.STOMPABLE}
-		scene.entities[id].sprite.texture = scene.textures[.TRAPDOOR_OPEN]
+		e.flags += {.FALLTHROUGH}
+		e.sprite.texture = scene.textures[.TRAPDOOR_OPEN]
 	}
 
+	cell := cell_get_by_pos(e.position, scene)
+	
+	if cell.entity_count > 1
+	{
+		for i in 0..<cell.entity_count
+		{
+			id := cell.entities_id[i]
+			if is_player(id) do out("GOOD")
+			else if is_enemy(entity_get(id, scene)^) do entity_kill(id, scene)
+		}
+	}
+}
+
+entity_kill :: proc(id: u32, scene: ^Scene)
+{
+	entity_set_active(id, false, scene)
+
+	entity := entity_get(id, scene)
+	curr_pos := entity.position
+	curr_cell := cell_get_by_pos(curr_pos, scene)
+
+	e_prev_count := curr_cell.entity_count
+	
+	position_on_entities_id : u32
+	for i in 0..< e_prev_count 
+	{
+		if (curr_cell.entities_id[i] == id) 
+		{
+			scene.board[i32(entity.position.x)][int(entity.position.y)].entities_id[i] = EMPTY_INDEX
+			scene.board[i32(entity.position.x)][int(entity.position.y)].entity_count -= 1
+			position_on_entities_id = i
+		} 
+	}	
+	if position_on_entities_id != MAX_ENTITIES_PER_CELL-1 && e_prev_count > 1
+	{
+		entities_id := &scene.board[i32(entity.position.x)][int(entity.position.y)].entities_id 
+		for i in position_on_entities_id+1..< MAX_ENTITIES_PER_CELL
+		{
+			entities_id[i-1] = entities_id[i]
+			entities_id[i] = EMPTY_INDEX
+		}
+	}
 }
 
 entity_set_uv 	:: proc(id: u32, u_flip: Vec2, scene: ^Scene)        { scene.entities[id].sprite.uv_flip = u_flip }
@@ -302,6 +343,7 @@ entity_move :: proc(id: u32, entity: ^Entity, next_pos: Vec2, scene: ^Scene)
 			entities_id[i] = EMPTY_INDEX
 		}
 	}
+	
 
 	e_next_count := next_cell.entity_count
 	scene.board[i32(next_pos.x)][int(next_pos.y)].entities_id[e_next_count] = id
