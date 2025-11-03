@@ -6,6 +6,10 @@ import "core:mem"
 import gl "vendor:OpenGL"
 import "vendor:glfw"
 import "core:math/linalg"
+import "core:c"
+import "core:sys/posix"
+
+
 
 CELL_SIZE 	  :: 64
 MOVE_DURATION :: 0.1
@@ -102,6 +106,9 @@ main :: proc()
 			mem.tracking_allocator_destroy(&track)
 		}
 	}
+
+	set_posix_signal_handlers()
+	
 
 
 	init_glfw()
