@@ -166,8 +166,10 @@ extract_board_size :: proc(line: string)-> (int, int)
 {	
 	values, err := strings.split(line, "x", context.temp_allocator)
 	assert(err==nil)
-
-	return strconv.atoi(values[0]), strconv.atoi(values[1])
+	
+	a, _ := strconv.parse_int(values[0]) 
+	b, _ := strconv.parse_int(values[1])
+	return a, b
 }
 
 parse_board_line :: proc(line: string, current_row: ^int, scene: ^Scene)
